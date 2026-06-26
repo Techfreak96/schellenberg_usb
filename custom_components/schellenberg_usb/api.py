@@ -42,6 +42,8 @@ from .const import (
     CMD_VERIFY,
     PAIRING_DEVICE_ENUM_START,
     PAIRING_TIMEOUT,
+    EVENT_REMOTE_BUTTON_PRESSED,
+    GROUP_CHANNEL_ALL,
     SIGNAL_DEVICE_EVENT,
     SIGNAL_STICK_STATUS_UPDATED,
     VERIFY_TIMEOUT,
@@ -64,6 +66,7 @@ class SchellenbergUsbApi:
         ] = {}  # Dict[device_id, device_enum] for registered entities
         self._is_connecting = False
         self._pairing_future: asyncio.Future[str] | None = None
+        self._remote_learning_future: asyncio.Future[dict[str, str]] | None = None
         self._stop_pairing_task: asyncio.Task[None] | None = (
             None  # Track task to stop pairing
         )
@@ -79,6 +82,28 @@ class SchellenbergUsbApi:
         # Retry queue for commands that failed with "stick busy"
         self._pending_retry_command: str | None = None
         self._retry_task: asyncio.Task[None] | None = None
+
+    @staticmethod
+    def _command_to_button(command: str) -> str | None:
+        """Map Schellenberg command bytes to remote button names."""
+        return {
+            CMD_UP: "up",
+            CMD_DOWN: "down",
+            CMD_STOP: "stop",
+            CMD_MANUAL_UP: "up",
+            CMD_MANUAL_DOWN: "down",
+        }.get(command)
+
+    @staticmethod
+    def _normalize_channel(device_enum: str) -> str:
+        """Return a stable channel label from the remote/channel byte."""
+        try:
+            channel = int(device_enum, 16)
+        except ValueError:
+            return device_enum
+        if 1 <= channel <= 5:
+            return str(channel)
+        return device_enum
 
     async def connect(self) -> None:
         """Establish a connection to the serial port."""
@@ -262,6 +287,7 @@ class SchellenbergUsbApi:
                 device_id = message[4:10]
                 # Skip message incrementor at positions 10:14
                 command = message[14:16]
+                button = self._command_to_button(command)
 
                 _LOGGER.debug(
                     "Parsed: enum=%s, id=%s, cmd=%s", device_enum, device_id, command
@@ -282,8 +308,25 @@ class SchellenbergUsbApi:
                         # Don't send dispatcher signal here - let the caller handle persistence
                         return
 
+                is_registered_device = device_id in self._registered_devices
+                is_learning_remote = (
+                    self._remote_learning_future is not None
+                    and not self._remote_learning_future.done()
+                )
+
+                if button is not None and (
+                    not is_registered_device or is_learning_remote
+                ):
+                    self._handle_remote_message(
+                        remote_id=device_id,
+                        channel=self._normalize_channel(device_enum),
+                        button=button,
+                        command=command,
+                        raw_message=message,
+                    )
+
                 # If this is the first time we see this device (auto-discovery mode)
-                if device_id not in self._registered_devices:
+                if not is_registered_device:
                     _LOGGER.warning(
                         "Received message for device %s (enum=%s, cmd=%s) but no "
                         "corresponding entity found. The device may need to be added "
@@ -307,6 +350,35 @@ class SchellenbergUsbApi:
                 )
             except (IndexError, ValueError) as err:
                 _LOGGER.debug("Failed to parse message %s: %s", message, err)
+
+    @callback
+    def _handle_remote_message(
+        self,
+        remote_id: str,
+        channel: str,
+        button: str,
+        command: str,
+        raw_message: str,
+    ) -> None:
+        """Handle a physical Schellenberg remote button frame."""
+        event_data = {
+            "remote_id": remote_id,
+            "channel": channel,
+            "button": button,
+            "command": command,
+            "raw": raw_message,
+        }
+
+        if self._remote_learning_future and not self._remote_learning_future.done():
+            self._remote_learning_future.set_result(event_data)
+
+        _LOGGER.info(
+            "Remote button received: remote=%s channel=%s button=%s",
+            remote_id,
+            channel,
+            button,
+        )
+        self.hass.bus.async_fire(EVENT_REMOTE_BUTTON_PRESSED, event_data)
 
     async def send_command(self, command: str) -> None:
         """Send a command to the USB stick."""
@@ -428,6 +500,53 @@ class SchellenbergUsbApi:
         command = f"{CMD_TRANSMIT}{device_enum}9{action}0000"
         _LOGGER.debug("Sending blind control: %s", command)
         await self.send_command(command)
+
+    async def control_native_group(
+        self, action: str, group_id: str | None = None
+    ) -> None:
+        """Send a native Schellenberg group/broadcast command.
+
+        The 5-channel remotes use their fifth/all channel for simultaneous group
+        operation. The USB stick exposes the same radio transmit shape as single
+        devices, so we address the configured virtual group enum directly.
+        """
+        if action not in (CMD_UP, CMD_DOWN, CMD_STOP):
+            _LOGGER.error("Invalid group action: %s", action)
+            return
+
+        group_enum = (group_id or GROUP_CHANNEL_ALL).strip().upper()
+        if group_enum.isdigit():
+            group_enum = f"{int(group_enum):02X}"
+        try:
+            int(group_enum, 16)
+        except ValueError:
+            _LOGGER.error("Invalid group id %s. Expected hex characters", group_id)
+            return
+        if len(group_enum) != 2:
+            _LOGGER.error("Invalid group id %s. Expected 2 hex characters", group_id)
+            return
+
+        command = f"{CMD_TRANSMIT}{group_enum}9{action}0000"
+        _LOGGER.debug("Sending native group control: %s", command)
+        await self.send_command(command)
+
+    async def learn_remote_and_wait(
+        self, timeout: float = 30
+    ) -> dict[str, str] | None:
+        """Wait for the next physical remote button press and return its details."""
+        if self._remote_learning_future and not self._remote_learning_future.done():
+            _LOGGER.warning("Remote learning already in progress")
+            return None
+
+        self._remote_learning_future = self.hass.loop.create_future()
+        try:
+            _LOGGER.info("Waiting for Schellenberg remote button press")
+            return await asyncio.wait_for(self._remote_learning_future, timeout=timeout)
+        except TimeoutError:
+            _LOGGER.warning("Remote learning timeout - no remote button received")
+            return None
+        finally:
+            self._remote_learning_future = None
 
     def initialize_next_device_enum(self) -> str:
         """Get the next available device enum based on registered devices.

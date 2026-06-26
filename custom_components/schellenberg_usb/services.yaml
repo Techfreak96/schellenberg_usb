@@ -3,3 +3,26 @@
 pair:
   name: Pair device
   description: Activate pairing mode on the Schellenberg USB stick to pair a new blind motor. After calling this service, press the pairing button on your blind motor within 10 seconds.
+
+send_native_group_command:
+  name: Send native group command
+  description: Send a Schellenberg native group command through the USB stick so all receivers on the selected group/channel react at the same time.
+  fields:
+    action:
+      name: Action
+      description: Group action to send.
+      required: true
+      selector:
+        select:
+          options:
+            - up
+            - down
+            - stop
+            - open
+            - close
+    group_id:
+      name: Group ID
+      description: Two-character Schellenberg group/channel byte. Use 05 for the fifth/all channel used by 5-channel remotes.
+      required: false
+      selector:
+        text:

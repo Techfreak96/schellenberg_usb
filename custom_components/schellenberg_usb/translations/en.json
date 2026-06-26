@@ -95,13 +95,19 @@
         "title": "Schellenberg USB",
         "description": "Edit the serial port path for the Schellenberg USB hub.",
         "data": {
-          "serial_port": "Serial port"
+          "serial_port": "Serial port",
+          "group_id": "Virtual group ID",
+          "group_name": "Virtual group name",
+          "learn_remote": "Learn physical remote",
+          "remote_name": "Remote name"
         },
         "submit": "Save"
       }
     },
     "error": {
       "cannot_connect": "Failed to connect to the serial port",
+      "invalid_group_id": "Group ID must be a two-character hex value or a decimal channel number.",
+      "remote_learning_timeout": "No remote button press was received before the timeout.",
       "unknown": "Unexpected error occurred"
     }
   },
@@ -127,6 +133,20 @@
     "pair": {
       "name": "Pair device",
       "description": "Activate pairing mode on the Schellenberg USB stick to pair a new blind motor. After calling this service, press the pairing button on your blind motor within 10 seconds."
+    },
+    "send_native_group_command": {
+      "name": "Send native group command",
+      "description": "Send a Schellenberg native group command through the USB stick so all receivers on the selected group/channel react at the same time.",
+      "fields": {
+        "action": {
+          "name": "Action",
+          "description": "Group action to send."
+        },
+        "group_id": {
+          "name": "Group ID",
+          "description": "Two-character Schellenberg group/channel byte. Use 05 for the fifth/all channel used by 5-channel remotes."
+        }
+      }
     }
   }
 }

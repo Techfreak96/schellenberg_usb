@@ -26,6 +26,12 @@ SUBENTRY_TYPE_BLIND = "blind"
 # Configuration keys
 CONF_SERIAL_PORT = "serial_port"
 CONF_DEVICE_NAME = "device_name"
+CONF_VIRTUAL_GROUPS = "virtual_groups"
+CONF_REMOTE_CONTROLS = "remote_controls"
+CONF_GROUP_ID = "group_id"
+CONF_GROUP_NAME = "group_name"
+CONF_REMOTE_NAME = "remote_name"
+CONF_LEARN_REMOTE = "learn_remote"
 
 # Data keys
 DATA_API_INSTANCE = "api_instance"
@@ -82,6 +88,7 @@ CMD_GET_SG = "sg"  # Unknown function
 
 # Command prefixes
 CMD_TRANSMIT = "ss"  # Schellenberg transmit prefix for device commands
+GROUP_CHANNEL_ALL = "05"  # Schellenberg 5-channel remotes use channel 5 as group/all
 
 # Dispatcher signals
 SIGNAL_DEVICE_EVENT = f"{DOMAIN}_device_event"
@@ -90,6 +97,12 @@ SIGNAL_PAIRING_STARTED = f"{DOMAIN}_pairing_started"
 SIGNAL_PAIRING_TIMEOUT = f"{DOMAIN}_pairing_timeout"
 SIGNAL_STICK_STATUS_UPDATED = f"{DOMAIN}_stick_status_updated"
 SIGNAL_CALIBRATION_COMPLETED = f"{DOMAIN}_calibration_completed"
+
+# Home Assistant event names
+EVENT_REMOTE_BUTTON_PRESSED = f"{DOMAIN}_remote_button_pressed"
+
+# Services
+SERVICE_SEND_NATIVE_GROUP_COMMAND = "send_native_group_command"
 
 # Device verification
 VERIFY_TIMEOUT = 5  # seconds to wait for verification response

@@ -13,8 +13,13 @@ from homeassistant.helpers import device_registry as dr
 
 from .api import SchellenbergUsbApi
 from .const import (
+    CMD_DOWN,
+    CMD_STOP,
+    CMD_UP,
+    CONF_GROUP_ID,
     CONF_SERIAL_PORT,
     DOMAIN,
+    SERVICE_SEND_NATIVE_GROUP_COMMAND,
     PLATFORMS,
     SUBENTRY_TYPE_HUB,
     SchellenbergConfigEntry,
@@ -29,6 +34,62 @@ CONFIG_SCHEMA = vol.Schema(
 
 # Store setup callbacks for each entry so we can track subentries
 _SETUP_CALLBACKS: dict[str, dict] = {}
+_SERVICES_REGISTERED = False
+
+
+def _action_to_command(action: str) -> str:
+    """Map service action names to Schellenberg command bytes."""
+    return {
+        "up": CMD_UP,
+        "open": CMD_UP,
+        "down": CMD_DOWN,
+        "close": CMD_DOWN,
+        "stop": CMD_STOP,
+    }[action]
+
+
+async def _async_register_services(hass: HomeAssistant) -> None:
+    """Register integration services once."""
+    global _SERVICES_REGISTERED  # noqa: PLW0603
+
+    if _SERVICES_REGISTERED:
+        return
+
+    async def _async_send_native_group_command(call) -> None:
+        """Send a native group command through the first configured USB stick."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        entry = next(
+            (
+                item
+                for item in entries
+                if CONF_SERIAL_PORT in item.data and getattr(item, "runtime_data", None)
+            ),
+            None,
+        )
+        if entry is None:
+            _LOGGER.error("No active Schellenberg USB hub found for group command")
+            return
+
+        api: SchellenbergUsbApi = entry.runtime_data
+        await api.control_native_group(
+            _action_to_command(call.data["action"]),
+            call.data.get(CONF_GROUP_ID),
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_SEND_NATIVE_GROUP_COMMAND,
+        _async_send_native_group_command,
+        schema=vol.Schema(
+            {
+                vol.Required("action"): vol.In(
+                    ["up", "down", "stop", "open", "close"]
+                ),
+                vol.Optional(CONF_GROUP_ID): cv.string,
+            }
+        ),
+    )
+    _SERVICES_REGISTERED = True
 
 
 async def async_setup_entry(
@@ -53,6 +114,8 @@ async def async_setup_entry(
 
     # Store API in runtime_data for platforms and services access
     entry.runtime_data = api
+
+    await _async_register_services(hass)
 
     # Start the connection
     hass.async_create_task(api.connect())
