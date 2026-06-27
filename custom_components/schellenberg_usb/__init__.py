@@ -6,7 +6,7 @@ import logging
 from types import MappingProxyType
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigSubentry
+from homeassistant.config_entries import ConfigEntryNotReady, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -38,11 +38,14 @@ _SETUP_CALLBACKS: dict[str, dict] = {}
 _SERVICES_REGISTERED = False
 
 
-def _action_to_command(action: str) -> str:
+def _action_to_command(action: str) -> str | None:
     """Map Home Assistant service action names to Schellenberg protocol command bytes.
 
     This translation ensures that cover actions (like 'open', 'close', or 'stop')
     are mapped to the correct hex code byte sequence supported by the Schellenberg USB Stick.
+
+    Returns None if the action is not recognized, allowing the caller to handle
+    the error gracefully instead of crashing with a KeyError.
     """
     return {
         "up": CMD_UP,
@@ -50,7 +53,7 @@ def _action_to_command(action: str) -> str:
         "down": CMD_DOWN,
         "close": CMD_DOWN,
         "stop": CMD_STOP,
-    }[action]
+    }.get(action)
 
 
 async def _async_register_services(hass: HomeAssistant) -> None:
@@ -86,8 +89,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             return
 
         api: SchellenbergUsbApi = entry.runtime_data
+        action = _action_to_command(call.data["action"])
+        if action is None:
+            _LOGGER.error("Invalid action '%s' in native group command", call.data["action"])
+            return
         await api.control_native_group(
-            _action_to_command(call.data["action"]),
+            action,
             call.data.get(CONF_GROUP_ID),
         )
 
@@ -191,8 +198,21 @@ async def async_setup_entry(
 
     await _async_register_services(hass)
 
-    # Start the connection
-    hass.async_create_task(api.connect())
+    # Start the connection synchronously so we can raise ConfigEntryNotReady
+    # if the serial port is unavailable. HA will then retry the setup later.
+    try:
+        await api.connect()
+        if not api.is_connected:
+            raise ConfigEntryNotReady(
+                f"Could not connect to Schellenberg USB stick on {port}"
+            )
+    except ConfigEntryNotReady:
+        raise
+    except Exception as err:
+        _LOGGER.exception("Failed to connect to serial port %s", port)
+        raise ConfigEntryNotReady(
+            f"Failed to connect to serial port {port}: {err}"
+        ) from err
 
     # Ensure we have a dedicated hub subentry so hub-level devices/entities
     # (like the LED) do not appear under "Devices that don't belong to a sub-entry".

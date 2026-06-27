@@ -50,6 +50,9 @@ from .const import (
     SIGNAL_STICK_STATUS_UPDATED,
     SIGNAL_REMOTE_EVENT,
     SIGNAL_WINDOW_SENSOR,
+    SENSOR_WINDOW_HANDLE_0,
+    SENSOR_WINDOW_HANDLE_90,
+    SENSOR_WINDOW_HANDLE_180,
     VERIFY_TIMEOUT,
 )
 
@@ -100,6 +103,9 @@ class SchellenbergUsbApi:
         # True = DOWN blocked, False = unrestricted
         self._blind_locks: dict[str, bool] = {}
 
+        # Reconnection management
+        self._reconnect_task: asyncio.Task[None] | None = None
+
     @staticmethod
     def _command_to_button(command: str) -> str | None:
         """Translate a Schellenberg command byte to a human‑readable button name.
@@ -141,11 +147,6 @@ class SchellenbergUsbApi:
         position using specific command bytes. Returns a human-readable
         state string or None if the command is not a window sensor event.
         """
-        from .const import (
-            SENSOR_WINDOW_HANDLE_0,
-            SENSOR_WINDOW_HANDLE_90,
-            SENSOR_WINDOW_HANDLE_180,
-        )
         return {
             SENSOR_WINDOW_HANDLE_0: "closed",
             SENSOR_WINDOW_HANDLE_90: "tilted",
@@ -153,7 +154,12 @@ class SchellenbergUsbApi:
         }.get(command)
 
     async def connect(self) -> None:
-        """Establish a connection to the serial port."""
+        """Establish a connection to the serial port.
+
+        This method ensures _is_connecting is always reset on every exit
+        path (success, verify-failure, or exception) to prevent the API
+        from getting stuck in a permanent "connecting" state.
+        """
         if self._is_connecting or (
             self._transport and not self._transport.is_closing()
         ):
@@ -162,16 +168,19 @@ class SchellenbergUsbApi:
 
         self._is_connecting = True
         _LOGGER.info("Connecting to Schellenberg USB stick at %s", self.port)
+
+        transport: asyncio.Transport | None = None
+        protocol: SchellenbergProtocol | None = None
+
         try:
-            (
-                self._transport,
-                self._protocol,
-            ) = await serial_asyncio.create_serial_connection(
+            transport, protocol = await serial_asyncio.create_serial_connection(
                 self.hass.loop,
                 lambda: SchellenbergProtocol(self._handle_message, self),
                 self.port,
                 baudrate=112500,
             )
+            self._transport = transport
+            self._protocol = protocol
             self._is_connecting = False
             _LOGGER.info("Successfully connected to Schellenberg USB stick")
 
@@ -183,7 +192,10 @@ class SchellenbergUsbApi:
                 if self._transport:
                     self._transport.close()
                 self._transport = None
+                self._protocol = None
                 self._is_connected = False
+                self._is_connecting = False
+                self._update_status()
                 return
 
             self._is_connected = True
@@ -194,11 +206,8 @@ class SchellenbergUsbApi:
                 _LOGGER.info(
                     "Device is in %s mode, entering listening mode", self._device_mode
                 )
-                # Send any lowercase command to enter listening mode (B:2)
                 await self.send_command("hello")
-                # Give the device a moment to switch modes
                 await asyncio.sleep(0.5)
-                # Update the mode to listening after sending the command
                 self._device_mode = "listening"
                 self._update_status()
                 _LOGGER.info("Device now in listening mode")
@@ -214,13 +223,23 @@ class SchellenbergUsbApi:
                 _LOGGER.warning("Failed to retrieve hub device ID")
         except (serial_asyncio.serial.SerialException, OSError) as err:
             _LOGGER.error(
-                "Failed to connect to %s: %s. Retrying in 5 seconds",
-                self.port,
-                err,
+                "Failed to connect to %s: %s", self.port, err,
             )
-            self._is_connecting = False
-            # Always retry after 5 seconds
-            self.hass.loop.call_later(5, lambda: self.hass.create_task(self.connect()))
+            if transport:
+                transport.close()
+            self._transport = None
+            self._protocol = None
+            self._is_connected = False
+        except Exception:
+            _LOGGER.exception("Unexpected error connecting to %s", self.port)
+            if transport:
+                transport.close()
+            self._transport = None
+            self._protocol = None
+            self._is_connected = False
+            raise  # Re-raise so HA gets ConfigEntryNotReady
+        finally:
+            self._is_connecting = False  # Always reset in ALL paths
 
     @callback
     def _handle_message(self, message: str) -> None:
@@ -1095,16 +1114,28 @@ class SchellenbergUsbApi:
         await self.send_command(CMD_REBOOT)
 
     async def disconnect(self) -> None:
-        """Disconnect from the serial port."""
+        """Disconnect from the serial port and cancel pending operations."""
         # Cancel any pending retry task
         if self._retry_task and not self._retry_task.done():
             self._retry_task.cancel()
             self._retry_task = None
 
+        # Cancel any pending reconnect
+        if self._reconnect_task and not self._reconnect_task.done():
+            self._reconnect_task.cancel()
+            self._reconnect_task = None
+
+        # Cancel any pending stop_pairing task
+        if self._stop_pairing_task and not self._stop_pairing_task.done():
+            self._stop_pairing_task.cancel()
+            self._stop_pairing_task = None
+
         if self._transport:
             self._transport.close()
             self._transport = None
-            _LOGGER.info("Disconnected from Schellenberg USB stick")
+        self._protocol = None
+        self._is_connected = False
+        _LOGGER.info("Disconnected from Schellenberg USB stick")
 
 
 class SchellenbergProtocol(asyncio.Protocol):
@@ -1127,6 +1158,13 @@ class SchellenbergProtocol(asyncio.Protocol):
         """Called with new data from the serial port."""
         _LOGGER.debug("Received from serial device: %s", data)
         self.buffer += data.decode("ascii", errors="ignore")
+        # Safety limit: prevent unbounded buffer growth if no newline arrives
+        if len(self.buffer) > 4096:
+            _LOGGER.warning(
+                "Serial buffer exceeded 4096 bytes, truncating to 1024. "
+                "Raw data may contain unexpected framing."
+            )
+            self.buffer = self.buffer[-1024:]
         while "\n" in self.buffer:
             line, self.buffer = self.buffer.split("\n", 1)
             if line.strip():
@@ -1134,6 +1172,21 @@ class SchellenbergProtocol(asyncio.Protocol):
                 self.message_callback(line.strip())
 
     def connection_lost(self, exc: Exception | None) -> None:
-        """Called when the connection is lost."""
+        """Called when the serial connection is lost or closed.
+
+        Triggers a reconnection attempt after a short delay, unless
+        the API is being intentionally disconnected.
+        """
         _LOGGER.warning("Serial port connection lost: %s", exc)
+        self.transport = None
         self.api.update_connection_status(False)
+
+        # Schedule a reconnect (unless intentionally disconnected)
+        api = self.api
+        if api._transport is None and not api._is_connecting:
+            # Use hass.create_task for safety; wrap to avoid stale references
+            async def _delayed_reconnect() -> None:
+                await asyncio.sleep(2)
+                await api.connect()
+
+            api._reconnect_task = asyncio.create_task(_delayed_reconnect())
