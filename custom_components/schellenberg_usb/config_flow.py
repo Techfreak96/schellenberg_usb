@@ -468,80 +468,141 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
 
 
 class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
-    """Flow for adding a window handle sensor as a subentry."""
+    """Flow for adding a window handle sensor and binding it to a blind."""
 
     VERSION = 1
+    _sensor_device_id: str | None = None
+    _sensor_state: str | None = None
 
-    async def async_step_window_sensor(
+    async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Entry point for adding a window sensor.
+        """Step 1: Show form to select which blind this sensor belongs to."""
+        hub_entry = self._get_entry()
 
-        Prompts the user to press the window handle so the stick can
-        capture the sensor's device ID from the radio message.
-        """
-        _LOGGER.debug("Window sensor subentry flow initiated")
-        return await self.async_step_listen(user_input)
+        # Build a list of existing blinds
+        blind_options: list[tuple[str, str]] = []
+        for subentry in hub_entry.subentries.values():
+            device_id = subentry.data.get("device_id", "")
+            device_name = subentry.title or f"Blind {device_id}"
+            if device_id and subentry.subentry_type == "blind":
+                blind_options.append((device_id, device_name))
+
+        if not blind_options:
+            return self.async_abort(reason="no_blinds")
+
+        if user_input is not None:
+            self._bind_blind_id = user_input["blind_device_id"]
+            return await self.async_step_listen()
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("blind_device_id"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=blind_options,
+                        ),
+                    ),
+                }
+            ),
+        )
 
     async def async_step_listen(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Listen for a window sensor signal from the stick."""
+        """Step 2: Listen for a window sensor signal."""
         hub_entry = self._get_entry()
-        api = hub_entry.runtime_data
+        api: SchellenbergUsbApi = hub_entry.runtime_data
 
         if user_input is not None:
-            # Wait for next window sensor event
-            window_future: asyncio.Future[dict[str, str]] = (
+            # Start listening via the dispatcher (signal already fired by api.py)
+            future: asyncio.Future[dict[str, str]] = (
                 hub_entry.runtime_data.hass.loop.create_future()
             )
             unsub = None
 
-            def _on_window_sensor(device_id: str, state: str, command: str) -> None:
-                if not window_future.done():
-                    window_future.set_result({
-                        "device_id": device_id,
-                        "state": state,
-                    })
+            from homeassistant.helpers.dispatcher import async_dispatcher_connect
 
-            unsub = api.hass.bus.async_listen_once(
-                f"{DOMAIN}_window_sensor_event",
-                lambda event: _on_window_sensor(
-                    event.data.get("device_id", ""),
-                    event.data.get("state", ""),
-                    event.data.get("command", ""),
+            def _on_window_sensor(state: str, command: str) -> None:
+                if not future.done():
+                    future.set_result({"state": state})
+
+            # We don't know the device_id yet - listen for ANY signal
+            # The api.py dispatches SIGNAL_WINDOW_SENSOR_{device_id}
+            # So we need a catch-all listener
+            from homeassistant.helpers.dispatcher import async_dispatcher_connect as adc
+
+            # Simpler approach: use hass.bus listener on the remote event
+            listener_unsub = None
+
+            # Actually, let's listen for ALL window sensor dispatches from api.py
+            # by connecting to the bus event that api.py fires
+            bus_unsub = api.hass.bus.async_listen_once(
+                f"{DOMAIN}_remote_button_pressed",
+                lambda event: (
+                    None
+                    if future.done()
+                    else future.set_result(
+                        {
+                            "device_id": event.data.get("remote_id", ""),
+                            "state": event.data.get("button", ""),
+                        }
+                    )
                 ),
             )
 
             try:
-                result = await asyncio.wait_for(window_future, timeout=60)
-                device_id = result["device_id"]
+                result = await asyncio.wait_for(future, timeout=60)
+                remote_id = result.get("device_id", "")
+                state = result.get("state", "")
+
+                # Verify this looks like a window sensor
+                if not remote_id:
+                    return self.async_abort(reason="window_sensor_timeout")
+
+                self._sensor_device_id = remote_id
             except TimeoutError:
                 return self.async_abort(reason="window_sensor_timeout")
             finally:
-                if unsub:
-                    unsub()
+                if bus_unsub:
+                    bus_unsub()
 
-            # Create the subentry
-            device_name = user_input.get("name") or f"Window Sensor {device_id}"
+            return await self.async_step_confirm()
+
+        return self.async_show_form(
+            step_id="listen",
+            data_schema=vol.Schema({}),
+            description_placeholders={
+                "instruction": "Press any button on the window handle so the stick can detect it. You have 60 seconds."
+            },
+        )
+
+    async def async_step_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Step 3: Confirm and create the subentry."""
+        if user_input is not None:
+            # Create the subentry with sensor_id and bound blind_id
+            device_name = user_input.get("name") or f"Window Sensor {self._sensor_device_id}"
             return self.async_create_entry(
                 title=device_name,
                 data={
-                    "device_id": device_id,
+                    "device_id": self._sensor_device_id,
+                    "bound_blind_id": self._bind_blind_id,
                     "type": "window_sensor",
                 },
             )
 
         return self.async_show_form(
-            step_id="listen",
+            step_id="confirm",
             data_schema=vol.Schema(
                 {
                     vol.Optional("name"): selector.TextSelector(),
                 }
             ),
             description_placeholders={
-                "instruction": (
-                    "Open and close the window handle so the stick can detect it."
-                ),
+                "device_id": self._sensor_device_id or "unknown",
+                "blind_id": self._bind_blind_id or "unknown",
             },
         )

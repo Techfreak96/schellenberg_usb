@@ -71,6 +71,7 @@ async def async_setup_entry(
         if subentry.subentry_type == SUBENTRY_TYPE_WINDOW_SENSOR:
             device_id = subentry.data.get("device_id")
             device_name = subentry.title or f"Window Sensor {device_id}"
+            bound_blind_id = subentry.data.get("bound_blind_id")
             if device_id:
                 window_sensors.append(
                     SchellenbergWindowSensor(
@@ -78,6 +79,7 @@ async def async_setup_entry(
                         entry=entry,
                         device_id=device_id,
                         device_name=device_name,
+                        bound_blind_id=bound_blind_id,
                     )
                 )
 
@@ -304,6 +306,7 @@ class SchellenbergWindowSensor(SensorEntity):
         entry: SchellenbergConfigEntry,
         device_id: str,
         device_name: str,
+        bound_blind_id: str | None = None,
     ) -> None:
         """Initialize the window sensor.
 
@@ -312,10 +315,13 @@ class SchellenbergWindowSensor(SensorEntity):
             entry: The config entry.
             device_id: 6-char hex ID of the sensor.
             device_name: Friendly name for display.
+            bound_blind_id: Optional blind device_id that should be
+                locked when the window is open/tilted.
 
         """
         self.api = api
         self._device_id = device_id
+        self._bound_blind_id = bound_blind_id
         self._attr_unique_id = f"{entry.entry_id}_window_{device_id}"
         self._attr_name = device_name
         self._attr_native_value = "unknown"
@@ -350,7 +356,7 @@ class SchellenbergWindowSensor(SensorEntity):
 
     @callback
     def _handle_window_event(self, state: str, command: str) -> None:
-        """Update state on window handle event."""
+        """Update state on window handle event and auto-lock bound blind."""
         _LOGGER.debug(
             "Window sensor %s state changed: %s (cmd=%s)",
             self._device_id,
@@ -359,3 +365,21 @@ class SchellenbergWindowSensor(SensorEntity):
         )
         self._attr_native_value = state
         self.async_write_ha_state()
+
+        # Auto-lock/unlock the bound blind via safety lock
+        if self._bound_blind_id:
+            if state in ("open", "tilted"):
+                self.api.set_blind_lock(self._bound_blind_id, True)
+                _LOGGER.info(
+                    "Window %s is %s → auto-locked blind %s",
+                    self._device_id,
+                    state,
+                    self._bound_blind_id,
+                )
+            elif state == "closed":
+                self.api.set_blind_lock(self._bound_blind_id, False)
+                _LOGGER.info(
+                    "Window %s is closed → unlocked blind %s",
+                    self._device_id,
+                    self._bound_blind_id,
+                )

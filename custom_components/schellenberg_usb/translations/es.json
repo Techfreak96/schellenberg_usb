@@ -114,8 +114,12 @@
         "name": "Versión del firmware"
       },
       "operating_mode": {
-        "name": "Modo de operación"
-      }
+        "name": "Modo de operación"      },
+      "signal_strength": {
+        "name": "Intensidad de señal"
+      },
+      "window_handle": {
+        "name": "Manilla de ventana"      }
     },
     "switch": {
       "led": {

@@ -399,6 +399,17 @@ class SchellenbergUsbApi:
                         window_state,
                         command,
                     )
+                    # Fire bus event for config flow listener
+                    self.hass.bus.async_fire(
+                        f"{EVENT_REMOTE_BUTTON_PRESSED}",
+                        {
+                            "remote_id": device_id,
+                            "channel": self._normalize_channel(device_enum),
+                            "button": window_state,
+                            "command": command,
+                            "type": "window_sensor",
+                        },
+                    )
                     # Auto-discovery for new window sensors
                     if device_id not in self._discovered_devices:
                         self._discovered_devices.add(device_id)

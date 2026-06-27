@@ -121,6 +121,12 @@
       },
       "operating_mode": {
         "name": "Operating mode"
+      },
+      "signal_strength": {
+        "name": "Signal strength"
+      },
+      "window_handle": {
+        "name": "Window handle"
       }
     },
     "switch": {

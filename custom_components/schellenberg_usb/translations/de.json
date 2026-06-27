@@ -115,6 +115,12 @@
       },
       "operating_mode": {
         "name": "Betriebsmodus"
+      },
+      "signal_strength": {
+        "name": "Signalstärke"
+      },
+      "window_handle": {
+        "name": "Fenstergriff"
       }
     },
     "switch": {
