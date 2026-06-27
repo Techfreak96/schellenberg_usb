@@ -9,6 +9,7 @@ from collections.abc import Callable
 import serial_asyncio
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.components import persistent_notification
 
 from .const import (
     CMD_ALLOW_PAIRING,
@@ -45,6 +46,7 @@ from .const import (
     EVENT_REMOTE_BUTTON_PRESSED,
     GROUP_CHANNEL_ALL,
     SIGNAL_DEVICE_EVENT,
+    SIGNAL_RSSI_UPDATED,
     SIGNAL_STICK_STATUS_UPDATED,
     SIGNAL_REMOTE_EVENT,
     VERIFY_TIMEOUT,
@@ -86,6 +88,12 @@ class SchellenbergUsbApi:
         # Retry queue for commands that failed with "stick busy"
         self._pending_retry_command: str | None = None
         self._retry_task: asyncio.Task[None] | None = None
+
+        # RSSI (signal strength) tracking per device
+        self._device_rssi: dict[str, int] = {}
+
+        # Auto-discovery: track devices we've already notified about
+        self._discovered_devices: set[str] = set()
 
     @staticmethod
     def _command_to_button(command: str) -> str | None:
@@ -319,6 +327,22 @@ class SchellenbergUsbApi:
                 command = message[14:16]
                 button = self._command_to_button(command)
 
+                # Parse RSSI (signal strength) if available at positions 16:18
+                if len(message) >= 18:
+                    try:
+                        rssi_raw = message[16:18]
+                        rssi = int(rssi_raw, 16)
+                        # Store and dispatch if changed
+                        if self._device_rssi.get(device_id) != rssi:
+                            self._device_rssi[device_id] = rssi
+                            async_dispatcher_send(
+                                self.hass,
+                                f"{SIGNAL_RSSI_UPDATED}_{device_id}",
+                                rssi,
+                            )
+                    except (ValueError, IndexError):
+                        pass  # Incomplete or corrupted RSSI bytes
+
                 _LOGGER.debug(
                     "Parsed: enum=%s, id=%s, cmd=%s", device_enum, device_id, command
                 )
@@ -366,6 +390,20 @@ class SchellenbergUsbApi:
                         device_enum,
                         command,
                     )
+                    # Auto-discovery: notify once per unknown device
+                    if device_id not in self._discovered_devices:
+                        self._discovered_devices.add(device_id)
+                        persistent_notification.async_create(
+                            self.hass,
+                            (
+                                f"A new Schellenberg device was detected: **{device_id}** "
+                                f"(channel {self._normalize_channel(device_enum)}).\n\n"
+                                "Go to **Settings > Devices & Services > Schellenberg USB** "
+                                "and use the **Pair device** service to add it to Home Assistant."
+                            ),
+                            title="New Schellenberg Device Detected",
+                            notification_id=f"{DOMAIN}_discovery_{device_id}",
+                        )
                 else:
                     # The entity will handle the event via the dispatcher
                     _LOGGER.debug(
@@ -721,6 +759,18 @@ class SchellenbergUsbApi:
 
         """
         return remote_id in self._registered_remotes
+
+    def get_device_rssi(self, device_id: str) -> int | None:
+        """Return the last known RSSI for a device.
+
+        Args:
+            device_id: 6-character hex device ID.
+
+        Returns:
+            RSSI raw value (0-255) or None if no signal received yet.
+
+        """
+        return self._device_rssi.get(device_id)
 
     def remove_known_device(self, device_id: str) -> None:
         """Remove a device from the registered entities.

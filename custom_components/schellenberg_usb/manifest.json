@@ -1,12 +1,12 @@
 {
   "domain": "schellenberg_usb",
   "name": "Schellenberg USB",
-  "codeowners": ["@GimpArm"],
+  "codeowners": ["@Techfreak96"],
   "config_flow": true,
-  "documentation": "https://github.com/GimpArm/schellenberg_usb",
+  "documentation": "https://github.com/Techfreak96/schellenberg_usb",
   "integration_type": "hub",
   "iot_class": "local_push",
-  "issue_tracker": "https://github.com/GimpArm/schellenberg_usb/issues",
+  "issue_tracker": "https://github.com/Techfreak96/schellenberg_usb/issues",
   "requirements": ["pyserial-asyncio==0.6"],
   "usb": [
     {
@@ -15,5 +15,5 @@
       "manufacturer": "van ooijen"
     }
   ],
-  "version": "v1.1.0"
+  "version": "v1.2.0"
 }

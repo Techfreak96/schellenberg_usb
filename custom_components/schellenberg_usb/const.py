@@ -98,6 +98,7 @@ SIGNAL_PAIRING_TIMEOUT = f"{DOMAIN}_pairing_timeout"
 SIGNAL_STICK_STATUS_UPDATED = f"{DOMAIN}_stick_status_updated"
 SIGNAL_CALIBRATION_COMPLETED = f"{DOMAIN}_calibration_completed"
 SIGNAL_REMOTE_EVENT = f"{DOMAIN}_remote_event"  # For forwarding remote button presses to entities
+SIGNAL_RSSI_UPDATED = f"{DOMAIN}_rssi_updated"  # Signal strength updates
 
 # Native Group Command Channel
 GROUP_CHANNEL_ALL = "05"  # Often used for 'all' blinds on 5-channel remotes

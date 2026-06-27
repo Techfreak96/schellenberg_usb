@@ -1,5 +1,8 @@
 {
   "name": "Schellenberg USB",
   "content_in_root": false,
-  "homeassistant": "2025.1.0"
+  "homeassistant": "2025.1.0",
+  "country": "DE",
+  "render_readme": true,
+  "filename": "custom_components/schellenberg_usb/manifest.json"
 }

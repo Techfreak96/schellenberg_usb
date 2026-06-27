@@ -13,7 +13,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from .api import SchellenbergUsbApi
 from .const import (
     DOMAIN,
+    SIGNAL_RSSI_UPDATED,
     SIGNAL_STICK_STATUS_UPDATED,
+    SUBENTRY_TYPE_BLIND,
     SUBENTRY_TYPE_HUB,
     SchellenbergConfigEntry,
 )
@@ -29,14 +31,13 @@ async def async_setup_entry(
     """Set up Schellenberg USB sensor entities."""
     api: SchellenbergUsbApi = entry.runtime_data
 
-    # Create sensor entities for USB stick status
-    sensors = [
+    sensors: list[SensorEntity] = [
         SchellenbergConnectionSensor(api, entry),
         SchellenbergVersionSensor(api, entry),
         SchellenbergModeSensor(api, entry),
     ]
 
-    # Find hub subentry id to group sensors
+    # Hub subentry for hub-level sensors
     hub_subentry_id = next(
         (
             s.subentry_id
@@ -45,7 +46,31 @@ async def async_setup_entry(
         ),
         None,
     )
+
+    # Create per-blind RSSI sensors from subentries
+    blind_sensors: list[SensorEntity] = []
+    for subentry in entry.subentries.values():
+        if subentry.subentry_type == SUBENTRY_TYPE_BLIND:
+            device_id = subentry.data.get("device_id")
+            device_name = subentry.title or f"Blind {device_id}"
+            if device_id:
+                blind_sensors.append(
+                    SchellenbergRssiSensor(
+                        api=api,
+                        entry=entry,
+                        device_id=device_id,
+                        device_name=device_name,
+                    )
+                )
+
+    _LOGGER.debug(
+        "Setting up %d hub sensors and %d blind RSSI sensors",
+        len(sensors),
+        len(blind_sensors),
+    )
     async_add_entities(sensors, config_subentry_id=hub_subentry_id)
+    if blind_sensors:
+        async_add_entities(blind_sensors)
 
 
 class SchellenbergBaseSensor(SensorEntity):
@@ -158,3 +183,81 @@ class SchellenbergModeSensor(SchellenbergBaseSensor):
         if mode == "initial":
             return "mdi:power"
         return "mdi:help-circle"
+
+
+class SchellenbergRssiSensor(SensorEntity):
+    """Per-blind signal strength (RSSI) sensor.
+
+    Receives signal strength updates from the API via the dispatcher
+    whenever a valid message with RSSI bytes is received from the blind.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "signal_strength"
+    _attr_native_unit_of_measurement = "dBm"
+    _attr_device_class = "signal_strength"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self,
+        api: SchellenbergUsbApi,
+        entry: SchellenbergConfigEntry,
+        device_id: str,
+        device_name: str,
+    ) -> None:
+        """Initialize the RSSI sensor.
+
+        Args:
+            api: The API instance.
+            entry: The config entry.
+            device_id: 6-char hex ID of the blind.
+            device_name: Friendly name for display.
+
+        """
+        self.api = api
+        self._device_id = device_id
+        self._attr_unique_id = f"{entry.entry_id}_rssi_{device_id}"
+        self._attr_name = f"{device_name} Signal"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, device_id)},
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.api.is_connected
+
+    @property
+    def native_value(self) -> int | None:
+        """Return the last known RSSI value for this device."""
+        return self.api.get_device_rssi(self._device_id)
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on signal strength."""
+        rssi = self.api.get_device_rssi(self._device_id)
+        if rssi is None:
+            return "mdi:wifi-off"
+        if rssi > 200:
+            return "mdi:wifi-strength-4"
+        if rssi > 150:
+            return "mdi:wifi-strength-3"
+        if rssi > 100:
+            return "mdi:wifi-strength-2"
+        return "mdi:wifi-strength-1"
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to RSSI updates."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_RSSI_UPDATED}_{self._device_id}",
+                self._handle_rssi_update,
+            )
+        )
+
+    @callback
+    def _handle_rssi_update(self, rssi: int) -> None:
+        """Update state when new RSSI data arrives."""
+        self.async_write_ha_state()
