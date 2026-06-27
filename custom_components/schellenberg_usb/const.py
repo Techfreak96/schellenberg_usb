@@ -33,6 +33,8 @@ CONF_GROUP_ID = "group_id"
 CONF_GROUP_NAME = "group_name"
 CONF_REMOTE_NAME = "remote_name"
 CONF_LEARN_REMOTE = "learn_remote"
+CONF_WINDOW_SENSOR_ENTITY = "window_sensor_entity"  # binary_sensor entity_id for auto-lock
+CONF_BLIND_LOCK_SENSORS = "blind_lock_sensors"  # dict: blind_device_id -> sensor_entity_id
 
 # Data keys
 DATA_API_INSTANCE = "api_instance"

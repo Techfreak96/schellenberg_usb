@@ -13,6 +13,7 @@ from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .const import (
+    CONF_BLIND_LOCK_SENSORS,
     CONF_GROUP_ID,
     CONF_GROUP_NAME,
     CONF_LEARN_REMOTE,
@@ -30,6 +31,7 @@ OPT_CONFIGURE = "configure_port"
 OPT_LEARN_REMOTE = "learn_remote"
 OPT_MANAGE_REMOTES = "manage_remotes"
 OPT_MANAGE_GROUPS = "manage_groups"
+OPT_CONFIGURE_SAFETY = "configure_safety"
 
 
 class SchellenbergOptionsFlowHandler(OptionsFlow):
@@ -65,6 +67,8 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
                 return await self.async_step_manage_remotes()
             if choice == OPT_MANAGE_GROUPS:
                 return await self.async_step_manage_groups()
+            if choice == OPT_CONFIGURE_SAFETY:
+                return await self.async_step_configure_safety()
 
         return self.async_show_form(
             step_id="init",
@@ -77,6 +81,7 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
                                 (OPT_LEARN_REMOTE, "Learn a New Remote"),
                                 (OPT_MANAGE_REMOTES, "Manage Remotes"),
                                 (OPT_MANAGE_GROUPS, "Manage Virtual Groups"),
+                                (OPT_CONFIGURE_SAFETY, "Configure Safety Lock"),
                             ],
                             translation_key=OPTION_MENU,
                         )
@@ -305,6 +310,61 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
                 }
             ),
             errors=self._errors,
+        )
+
+    async def async_step_configure_safety(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Configure a binary_sensor per blind for auto-safety-lock."""
+        self._errors = {}
+        current_options = dict(self.config_entry.options)
+
+        # Build a list of all paired blinds from subentries
+        blinds: list[tuple[str, str]] = []
+        for subentry in self.config_entry.subentries.values():
+            device_id = subentry.data.get("device_id", "")
+            device_name = subentry.title or f"Blind {device_id}"
+            if device_id:
+                blinds.append((device_id, device_name))
+
+        if not blinds:
+            return self.async_abort(reason="no_blinds")
+
+        if user_input is not None:
+            lock_sensors: dict[str, str] = {}
+            for device_id, _ in blinds:
+                sensor_entity = user_input.get(f"sensor_{device_id}")
+                if sensor_entity:
+                    lock_sensors[device_id] = sensor_entity
+
+            updated_options = dict(current_options)
+            updated_options[CONF_BLIND_LOCK_SENSORS] = lock_sensors
+            self.hass.config_entries.async_update_entry(
+                self.config_entry, options=updated_options
+            )
+            return self.async_create_entry(title="", data=updated_options)
+
+        # Build schema with one binary_sensor selector per blind
+        schema = {}
+        for device_id, device_name in blinds:
+            schema[vol.Optional(f"sensor_{device_id}")] = selector.EntitySelector(
+                selector.EntitySelectorConfig(
+                    domain="binary_sensor",
+                    device_class=["window", "door"],
+                ),
+            )
+
+        return self.async_show_form(
+            step_id="configure_safety",
+            data_schema=vol.Schema(schema),
+            errors=self._errors,
+            description_placeholders={
+                "instruction": (
+                    "Select a window/door sensor for each blind. "
+                    "When the sensor is open, the blind will be locked "
+                    "against closing (DOWN blocked)."
+                )
+            },
         )
 
     @callback

@@ -24,6 +24,7 @@ from .const import (
     CMD_DOWN,
     CMD_STOP,
     CMD_UP,
+    CONF_BLIND_LOCK_SENSORS,
     CONF_CLOSE_TIME,
     CONF_OPEN_TIME,
     CONF_SERIAL_PORT,
@@ -378,6 +379,43 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         # Update entity state
         self.async_write_ha_state()
 
+    @callback
+    def _is_window_sensor_open(self) -> bool:
+        """Check if the configured window/door safety sensor is open.
+
+        Reads the sensor mapping from the config entry's options
+        (set via OptionsFlow -> Configure Safety Lock). If a sensor
+        is configured and its state is 'on', the blind should be
+        locked against closing.
+
+        Returns:
+            True if the sensor exists and is in 'on' state (open).
+            False if no sensor is configured or the sensor is 'off'.
+
+        """
+        entry = self.hass.config_entries.async_get_entry(self._config_entry_id)
+        if entry is None:
+            return False
+
+        lock_sensors: dict[str, str] = entry.options.get(CONF_BLIND_LOCK_SENSORS, {})
+        sensor_entity_id = lock_sensors.get(self._device_id)
+
+        if not sensor_entity_id:
+            return False  # No sensor configured for this blind
+
+        sensor_state = self.hass.states.get(sensor_entity_id)
+        if sensor_state is None:
+            return False  # Sensor entity not found
+
+        is_open = sensor_state.state == "on"
+        if is_open:
+            _LOGGER.debug(
+                "Window sensor %s for blind %s is OPEN -> blocking DOWN",
+                sensor_entity_id,
+                self._device_id,
+            )
+        return is_open
+
     async def async_will_remove_from_hass(self) -> None:
         """Clean up when entity is removed."""
         await super().async_will_remove_from_hass()
@@ -606,7 +644,20 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         await self._api.control_blind(self._device_enum, CMD_UP, device_id=self._device_id)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
-        """Close cover."""
+        """Close cover.
+
+        Checks if a configured window/door sensor (from entry.options)
+        is open. If so, the command is blocked and a warning is logged.
+        """
+        # Check safety sensor first
+        if self._is_window_sensor_open():
+            _LOGGER.warning(
+                "Blind %s (%s) NOT closing - window/door sensor is open!",
+                self._attr_name,
+                self._device_id,
+            )
+            return
+
         _LOGGER.debug("Closing cover %s (enum=%s)", self._attr_name, self._device_enum)
         self._attr_is_opening = False
         self._attr_is_closing = True

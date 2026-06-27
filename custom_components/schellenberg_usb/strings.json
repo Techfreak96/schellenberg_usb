@@ -42,6 +42,13 @@
         "reconfigure": "Calibrate"
       },
       "step": {
+        "select_type": {
+          "title": "Add device",
+          "description": "What do you want to add?",
+          "data": {
+            "device_type": "Device type"
+          }
+        },
         "user": {
           "title": "Pair a new device",
           "description": "Press the pair button to activate pairing mode on your Schellenberg USB stick. Then press the pairing button on your blind motor within 2 minutes.",
