@@ -127,6 +127,20 @@
     "pair": {
       "name": "Appairer l'appareil",
       "description": "Activez le mode d'appairage sur la clé USB Schellenberg pour appairer un nouveau moteur de volet. Après avoir appelé ce service, appuyez sur le bouton d'appairage de votre moteur de volet dans les 10 secondes."
+    },
+    "send_native_group_command": {
+      "name": "Envoyer une commande de groupe native",
+      "description": "Envoie une commande de groupe native Schellenberg via le stick USB afin que tous les récepteurs du canal sélectionné réagissent simultanément.",
+      "fields": {
+        "action": {
+          "name": "Action",
+          "description": "Action de groupe (up/down/stop/open/close)."
+        },
+        "group_id": {
+          "name": "ID de groupe",
+          "description": "Octet de groupe/canal Schellenberg à deux caractères. Utilisez 05 pour le cinquième canal (tous)."
+        }
+      }
     }
   }
 }

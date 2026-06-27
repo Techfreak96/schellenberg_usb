@@ -127,6 +127,20 @@
     "pair": {
       "name": "Gerät koppeln",
       "description": "Aktivieren Sie den Kopplungsmodus am Schellenberg USB-Stick, um einen neuen Rollladenmotor zu koppeln. Drücken Sie nach dem Aufrufen dieses Dienstes innerhalb von 10 Sekunden die Kopplungstaste an Ihrem Rollladenmotor."
+    },
+    "send_native_group_command": {
+      "name": "Nativen Gruppenbefehl senden",
+      "description": "Sendet einen nativen Schellenberg Gruppenbefehl über den USB-Stick, sodass alle Empfänger im ausgewählten Kanal gleichzeitig reagieren.",
+      "fields": {
+        "action": {
+          "name": "Aktion",
+          "description": "Gruppenaktion (up/down/stop/open/close)."
+        },
+        "group_id": {
+          "name": "Gruppen-ID",
+          "description": "Zweistellige Schellenberg Gruppen-/Kanal-ID. Verwenden Sie 05 für den fünften Kanal (alle)."
+        }
+      }
     }
   }
 }

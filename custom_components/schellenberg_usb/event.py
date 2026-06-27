@@ -27,9 +27,9 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from .api import SchellenbergUsbApi
 from .const import (
+    CONF_REMOTE_CONTROLS,
     DOMAIN,
     SIGNAL_REMOTE_EVENT,
-    SUBENTRY_TYPE_BLIND,
     SchellenbergConfigEntry,
 )
 
@@ -50,18 +50,22 @@ async def async_setup_entry(
     api: SchellenbergUsbApi = entry.runtime_data
     entities: list[SchellenbergRemoteEvent] = []
 
-    # Create entities from subentries that have remote_id data
-    for subentry in entry.subentries.values():
-        remote_id = subentry.data.get("remote_id")
-        channel = subentry.data.get("channel")
+    # Read registered remotes from entry.options (stored via options_flow)
+    remote_controls: list[dict] = list(entry.options.get(CONF_REMOTE_CONTROLS, []))
+
+    for remote in remote_controls:
+        remote_id = remote.get("remote_id")
+        channel = remote.get("channel")
         if remote_id and channel is not None:
+            # Register remote in the API so it gets dispatcher signals
+            api.register_remote(remote_id, channel)
             entities.append(
                 SchellenbergRemoteEvent(
                     api=api,
                     entry=entry,
                     remote_id=remote_id,
                     channel=channel,
-                    subentry_id=subentry.subentry_id,
+                    remote_name=remote.get("remote_name"),
                 )
             )
 
@@ -100,7 +104,7 @@ class SchellenbergRemoteEvent(EventEntity):
         entry: SchellenbergConfigEntry,
         remote_id: str,
         channel: str,
-        subentry_id: str | None = None,
+        remote_name: str | None = None,
     ) -> None:
         """Initialize the remote event entity.
 
@@ -109,19 +113,18 @@ class SchellenbergRemoteEvent(EventEntity):
             entry: The HA config entry for this integration.
             remote_id: 6-char hex ID of the physical remote.
             channel: Remote channel (e.g. "1" to "5").
-            subentry_id: Optional config subentry to group under.
+            remote_name: Optional human-readable name for this remote.
 
         """
         self.api = api
         self._remote_id = remote_id
         self._channel = channel
-        self._subentry_id = subentry_id
 
         self._attr_unique_id = f"{entry.entry_id}_remote_{remote_id}"
-        self._attr_name = f"Remote {remote_id} (ch{channel})"
+        self._attr_name = remote_name or f"Remote {remote_id} (ch{channel})"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, f"{entry.entry_id}_remote_{remote_id}")},
-            name=f"Schellenberg Remote {remote_id}",
+            name=remote_name or f"Schellenberg Remote {remote_id}",
             manufacturer="Schellenberg",
             via_device=(DOMAIN, entry.entry_id),
         )

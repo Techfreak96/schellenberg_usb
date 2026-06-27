@@ -17,6 +17,7 @@ from .const import (
     CMD_STOP,
     CMD_UP,
     CONF_GROUP_ID,
+    CONF_REMOTE_CONTROLS,
     CONF_SERIAL_PORT,
     DOMAIN,
     SERVICE_SEND_NATIVE_GROUP_COMMAND,
@@ -181,7 +182,18 @@ async def async_setup_entry(
             add_config_subentry_id=hub_subentry.subentry_id,
         )
 
-    # Forward setup to the hub's platforms (cover, sensor, switch)
+    # Forward setup to the hub's platforms (cover, event, sensor, switch)
+    # Register any persisted remotes before platform setup so the event
+    # entities can receive dispatcher signals.
+    remote_controls: list[dict] = list(
+        entry.options.get(CONF_REMOTE_CONTROLS, [])
+    )
+    if remote_controls:
+        api.register_existing_remotes(remote_controls)
+        _LOGGER.info(
+            "Registered %d persisted remote(s) from options", len(remote_controls)
+        )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     # Add listener to reload entry when subentries are added

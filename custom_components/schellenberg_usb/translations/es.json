@@ -127,6 +127,20 @@
     "pair": {
       "name": "Emparejar dispositivo",
       "description": "Active el modo de emparejamiento en la memoria USB Schellenberg para emparejar un nuevo motor de persiana. Después de llamar a este servicio, presione el botón de emparejamiento en su motor de persiana en los próximos 10 segundos."
+    },
+    "send_native_group_command": {
+      "name": "Enviar comando de grupo nativo",
+      "description": "Envía un comando de grupo nativo de Schellenberg a través del stick USB para que todos los receptores en el canal seleccionado reaccionen simultáneamente.",
+      "fields": {
+        "action": {
+          "name": "Acción",
+          "description": "Acción del grupo (up/down/stop/open/close)."
+        },
+        "group_id": {
+          "name": "ID de grupo",
+          "description": "Byte de grupo/canal Schellenberg de dos caracteres. Use 05 para el quinto canal (todos)."
+        }
+      }
     }
   }
 }
