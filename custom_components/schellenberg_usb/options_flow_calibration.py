@@ -474,11 +474,15 @@ class CalibrationFlowHandler:
 
         After calibration completes, the device is in fully closed position,
         so we update the cover entity position to 0.
+
+        Calibration data is persisted to:
+        1. Legacy Store (schellenberg_usb_devices) for backward compatibility.
+        2. Config entry subentry data for HA-native persistence across restarts.
         """
+        # --- Persist to legacy Store ---
         storage: Store = Store(self.flow.hass, STORAGE_VERSION, STORAGE_KEY)
         stored_data = await storage.async_load() or {"devices": []}
 
-        # Find and update the device
         if self._selected_device is not None:
             for device in stored_data.get("devices", []):
                 if device["id"] == self._selected_device["id"]:
@@ -487,6 +491,39 @@ class CalibrationFlowHandler:
                     break
 
         await storage.async_save(stored_data)
+
+        # --- Also persist to config subentry (survives HA restart) ---
+        entry = getattr(self.flow, "config_entry", None)
+        if entry is not None and self._selected_device is not None:
+            device_id = self._selected_device.get("id")
+            if device_id:
+                # Find the matching blind subentry
+                for subentry in entry.subentries.values():
+                    if subentry.data.get("device_id") == device_id:
+                        # Update subentry data with new calibration times
+                        updated_data = dict(subentry.data)
+                        updated_data[CONF_OPEN_TIME] = round(open_time, 2)
+                        updated_data[CONF_CLOSE_TIME] = round(close_time, 2)
+                        try:
+                            self.flow.hass.config_entries.async_update_subentry(
+                                entry,
+                                subentry.subentry_id,
+                                data=updated_data,
+                            )
+                            _LOGGER.debug(
+                                "Updated subentry %s with calibration times: "
+                                "open=%.2fs, close=%.2fs",
+                                subentry.subentry_id,
+                                open_time,
+                                close_time,
+                            )
+                        except Exception as err:
+                            _LOGGER.warning(
+                                "Could not update subentry data: %s. "
+                                "Calibration still saved to legacy store.",
+                                err,
+                            )
+                        break
 
         # Send signal to notify entities that calibration has been completed
         if self._selected_device is not None:
