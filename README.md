@@ -16,8 +16,8 @@ Home Assistant component that interfaces with the [Schellenberg Usb Funk-Stick](
 
 * Supports blind movement Up, Down, and Stop
 * After calibration, position tracking is possible.
-* **Remote Learning Mode**: Capture button presses from physical Schellenberg remotes for automation.
-* **Native Group Control**: Command groups of blinds simultaneously, mirroring Schellenberg 5-channel remotes.
+* **Remote Learning Mode**: Register physical Schellenberg remotes as persistent HA event entities for automation triggers.
+* **Native Group Control**: Send hardware broadcast commands (like Schellenberg 5-channel remotes) for simultaneous multi-blind operation.
 
 ## Installation
 
@@ -93,6 +93,90 @@ You can calibrate a blind:
 
 > [!NOTE]
 > If calibration times seem incorrect, you can recalibrate at any time from the device options.
+
+---
+
+## Advanced Features
+
+### Remote Learning Mode
+
+The integration can learn physical Schellenberg remote controls and expose them as **persistent Event Entities** in Home Assistant. Each registered remote fires HA events when a button is pressed, enabling automations without any additional hardware.
+
+**How it works:**
+1. Go to **Settings > Devices & Services > Schellenberg USB > Options**
+2. Enable **"Learn Remote"** and press a button on your physical Schellenberg remote
+3. The remote ID and channel are captured and stored persistently in `entry.options`
+4. A new Event Entity appears (e.g. `event.schellenberg_remote_a1b2c3`)
+5. Every subsequent button press fires a HA event and updates the entity
+
+**Example Automation Trigger:**
+```yaml
+trigger:
+  - platform: event
+    event_type: schellenberg_usb_remote_button_pressed
+    event_data:
+      remote_id: "A1B2C3"
+      button: "up"
+```
+
+**Event Data Schema:**
+| Field | Type | Description |
+|-------|------|-------------|
+| `remote_id` | string | 6-char hex ID of the remote (e.g. `5D3E7C`) |
+| `channel` | string | Remote channel (e.g. `1`, `2`, ..., `5`) |
+| `button` | string | Button pressed: `up`, `down`, or `stop` |
+| `command` | string | Raw hex command byte from the protocol |
+
+**Configuration** (via Options Flow):
+1. Set **"Learn Remote"** checkbox
+2. Press any button on the physical remote within 30 seconds
+3. Optionally provide a friendly **"Remote Name"**
+4. The remote is now registered and will survive HA restarts
+
+> [!TIP]
+> If a remote doesn't appear after learning, ensure you're within range (~20m indoors) and try again. The stick listens for all `ss`-prefixed messages while in listening mode.
+
+### Native Group Command Service
+
+Send hardware-level broadcast commands through the USB stick, mimicking the behavior of Schellenberg 5-channel remotes where all blinds on a channel react **simultaneously** (no sequential delays).
+
+**Service:** `schellenberg_usb.send_native_group_command`
+
+```yaml
+# Example: Send "open" to all blinds on channel 5 (the "All" channel)
+service: schellenberg_usb.send_native_group_command
+data:
+  action: open
+  group_id: "05"
+```
+
+**Parameters:**
+| Field | Required | Default | Description |
+|-------|----------|---------|-------------|
+| `action` | ✅ Yes | — | `up`, `down`, `stop`, `open`, or `close` |
+| `group_id` | ❌ No | `05` | 2-char hex group/channel byte (e.g. `01`-`05`) |
+
+**Technical Note:** Unlike the sequence-based group command (`send_group_command`) which queues individual commands to multiple blinds, the native group command sends a single hardware broadcast. All blind motors that are paired to the given channel will react at the exact same time.
+
+### Event Entity Platform
+
+Each registered remote creates an EventEntity that:
+
+- Fires typed events (`up`, `down`, `stop`) via `_trigger_event()` — usable natively in HA automation triggers
+- Fires bus events (`schellenberg_usb_remote_button_pressed`) for cross-integration compatibility
+- Provides Device Registry entry attached to the USB hub
+- Persists across HA restarts via `entry.options` storage
+
+**Entity Attributes:**
+| Attribute | Description |
+|-----------|-------------|
+| `event_types` | Supported event types: `up`, `down`, `stop` |
+| `device_info` | Manufacturer: Schellenberg, linked to USB hub |
+| `unique_id` | Format: `{entry_id}_remote_{remote_id}` |
+
+---
+
+## Device Pairing Instructions
 
 ## Device Pairing Instructions
 

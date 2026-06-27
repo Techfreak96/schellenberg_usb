@@ -391,7 +391,26 @@ class SchellenbergUsbApi:
         command: str,
         raw_message: str,
     ) -> None:
-        """Handle a physical Schellenberg remote button frame."""
+        """Handle a physical Schellenberg remote button frame.
+
+        This method is called when the message parser detects a button press
+        from a device that is either an unknown remote or during remote learning
+        mode. It performs three actions:
+
+        1. If remote learning is active (`_remote_learning_future` exists),
+           resolves the future so `learn_remote_and_wait()` can return the data.
+        2. Fires a bus event (`schellenberg_usb_remote_button_pressed`) for
+           automations that use the raw event trigger.
+        3. If the remote is already registered, sends a dispatcher signal
+           (`SIGNAL_REMOTE_EVENT_{remote_id}`) to the corresponding EventEntity.
+
+        Args:
+            remote_id: 6-character hex ID of the remote.
+            channel: Normalized channel string (e.g. "1", "2", ..., "5").
+            button: Semantic button name ("up", "down", "stop").
+            command: Raw hex command byte from the protocol.
+            raw_message: The original unparsed message string for debugging.
+        """
         event_data = {
             "remote_id": remote_id,
             "channel": channel,
