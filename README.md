@@ -18,6 +18,10 @@ Home Assistant component that interfaces with the [Schellenberg Usb Funk-Stick](
 * After calibration, position tracking is possible.
 * **Remote Learning Mode**: Register physical Schellenberg remotes as persistent HA event entities for automation triggers.
 * **Native Group Control**: Send hardware broadcast commands (like Schellenberg 5-channel remotes) for simultaneous multi-blind operation.
+* **Safety Lock System**: Lock individual blinds to prevent them from closing (e.g., when a window is open). UP and STOP always allowed for safety.
+* **Window Handle Sensor**: Detect Schellenberg window handle positions (closed/tilted/open) and auto-lock the associated blind.
+* **RSSI Signal Strength**: Per-blind signal strength sensor for troubleshooting range issues.
+* **Auto-Discovery**: Newly detected devices trigger a persistent notification with pairing instructions.
 
 ## Installation
 
@@ -176,7 +180,138 @@ Each registered remote creates an EventEntity that:
 
 ---
 
-## Device Pairing Instructions
+## Safety Lock System (Aussperrschutz) 🔒
+
+The safety lock prevents a blind from closing (DOWN command) while allowing UP and STOP for safety. This can be linked to window/door sensors.
+
+### Service: `schellenberg_usb.set_blind_lock`
+
+```yaml
+# Example: Lock blind when a window opens
+service: schellenberg_usb.set_blind_lock
+data:
+  entity_id: cover.wohnzimmer_rollo
+  locked: true
+```
+
+**Parameters:**
+| Field | Required | Description |
+|-------|----------|-------------|
+| `entity_id` | No | Cover entity to lock (easier than finding device_id) |
+| `device_id` | No | 6-char hex device ID |
+| `locked` | No | `true`=block DOWN, `false`=allow DOWN (default: true) |
+
+> **Safety:** CMD_UP and CMD_STOP are NEVER blocked – the blind can always be opened or stopped.
+
+### Automation Example: Window Sensor + Safety Lock
+
+```yaml
+- alias: "Lock blinds when window opens"
+  trigger:
+    - platform: state
+      entity_id: sensor.wohnzimmer_fenster
+      from: "closed"
+  action:
+    - service: schellenberg_usb.set_blind_lock
+      data:
+        entity_id: cover.wohnzimmer_rollo
+        locked: true
+```
+
+---
+
+## Window Handle Sensor 🪟
+
+The USB stick can receive signals from Schellenberg window handle sensors. When paired, each sensor appears as a HA entity with states: `closed`, `tilted`, `open`.
+
+### Adding a Window Sensor
+
+1. Go to **Settings > Devices & Services > Schellenberg USB**
+2. Click **"+ Add device"**
+3. Choose **"Window Sensor"**
+4. Select which blind this sensor belongs to
+5. Move the window handle so the stick can detect it (60 seconds timeout)
+6. Provide a name (optional)
+7. Done! The sensor appears in HA
+
+### Auto-Safety Lock
+
+When a window sensor is bound to a blind, the safety lock is **automatically** activated:
+
+| Window State | Safety Lock |
+|-------------|-------------|
+| `open` or `tilted` | 🔒 Blind locked (DOWN blocked) |
+| `closed` | 🔓 Blind unlocked (DOWN allowed) |
+
+No automation needed – this happens automatically in real-time.
+
+### Entity States
+
+| State | Icon | Description |
+|-------|------|-------------|
+| `closed` | 🪟 | Window handle at 0° (closed) |
+| `tilted` | 🪟 | Window handle at 90° (tilted) |
+| `open` | 🪟 | Window handle at 180° (fully open) |
+
+---
+
+## RSSI Signal Strength Sensor 📶
+
+Each paired blind automatically gets a signal strength sensor (`sensor.{name}_signal`). The value ranges from 0 (weak) to 255 (strong). The icon changes based on signal quality:
+
+| RSSI Range | Icon |
+|-----------|------|
+| > 200 | `mdi:wifi-strength-4` Excellent |
+| > 150 | `mdi:wifi-strength-3` Good |
+| > 100 | `mdi:wifi-strength-2` Fair |
+| ≤ 100 | `mdi:wifi-strength-1` Weak |
+| None | `mdi:wifi-off` No signal |
+
+Use this to find the optimal position for the USB stick.
+
+---
+
+## Auto-Discovery 🔍
+
+When the USB stick receives a signal from an unknown device (new blind, remote, or window sensor), a persistent notification appears in Home Assistant:
+
+> **New Schellenberg Device Detected**  
+> A new device was detected: **A1B2C3** (channel 1).  
+> Go to Settings > Devices & Services to add it permanently.
+
+This helps you discover devices that are already paired to a physical remote.
+
+---
+
+## Test Suite 🧪
+
+The integration includes a pytest test suite in the `tests/` directory:
+
+```
+tests/
+├── __init__.py
+├── test_api.py      (16 tests - API methods, remote registration, commands)
+└── test_const.py    (Verify all constants are correctly defined)
+```
+
+Run tests with:
+```bash
+pytest tests/ -v
+```
+
+---
+
+## Services Overview
+
+| Service | Description |
+|---------|-------------|
+| `pair` | Activate pairing mode on the USB stick |
+| `pair_device` | Pair a device directly by 6-char hex ID |
+| `send_group_command` | Sequential group command (queue-based) |
+| `send_native_group_command` | Hardware broadcast group command |
+| `set_blind_lock` | Lock/unlock a blind against DOWN commands |
+
+---
 
 ## Device Pairing Instructions
 
