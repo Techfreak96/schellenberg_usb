@@ -529,9 +529,15 @@ class SchellenbergUsbApi:
         # ss = transmit prefix
         # XX = device enumerator (2 hex chars)
         # 9 = number of messages to send
-        # CC = command (60 = pair)
+        # CC = command (40 = allow pairing / learn new remote)
         # PPPP = padding (4 chars)
-        pair_command = f"{CMD_TRANSMIT}{device_enum}9{CMD_PAIR}0000"
+        #
+        # NOTE: CMD_ALLOW_PAIRING (0x40) is used here, NOT CMD_PAIR (0x60).
+        # Multiple users (ohlmannmichael-ai, hrabbach, YannToberen) and the
+        # reverse-engineered protocol docs confirm that 0x40 is the correct
+        # command to make a blind motor accept the stick's enum assignment.
+        # 0x60 only changes rotation direction and does NOT complete pairing.
+        pair_command = f"{CMD_TRANSMIT}{device_enum}9{CMD_ALLOW_PAIRING}0000"
 
         _LOGGER.info(
             "Initiating pairing with device enum %s. Command: %s",
