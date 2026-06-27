@@ -38,7 +38,11 @@ _SERVICES_REGISTERED = False
 
 
 def _action_to_command(action: str) -> str:
-    """Map service action names to Schellenberg command bytes."""
+    """Map Home Assistant service action names to Schellenberg protocol command bytes.
+
+    This translation ensures that cover actions (like 'open', 'close', or 'stop')
+    are mapped to the correct hex code byte sequence supported by the Schellenberg USB Stick.
+    """
     return {
         "up": CMD_UP,
         "open": CMD_UP,
@@ -49,14 +53,24 @@ def _action_to_command(action: str) -> str:
 
 
 async def _async_register_services(hass: HomeAssistant) -> None:
-    """Register integration services once."""
+    """Register integration-level services once.
+
+    This registers the custom service `send_native_group_command` with Home Assistant,
+    ensuring it is only registered once even if multiple config entries are reloaded.
+    """
     global _SERVICES_REGISTERED  # noqa: PLW0603
 
     if _SERVICES_REGISTERED:
         return
 
     async def _async_send_native_group_command(call) -> None:
-        """Send a native group command through the first configured USB stick."""
+        """Send a native group command through the first configured USB stick.
+
+        This service callback searches all active config entries within the integration
+        to find one representing the physical USB stick hub (having CONF_SERIAL_PORT).
+        If found and connected, it extracts the API handler from its runtime_data
+        and dispatches the native command block for the requested action and group.
+        """
         entries = hass.config_entries.async_entries(DOMAIN)
         entry = next(
             (

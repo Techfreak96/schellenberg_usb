@@ -16,7 +16,7 @@ DOMAIN = "schellenberg_usb"
 type SchellenbergConfigEntry = ConfigEntry[SchellenbergUsbApi]
 
 # Platform for the cover entities
-PLATFORMS = ["cover", "sensor", "switch"]
+PLATFORMS = ["cover", "event", "sensor", "switch"]
 
 # Subentry types
 SUBENTRY_TYPE_LED = "led"
@@ -87,8 +87,8 @@ CMD_GET_PARAM_W = "sw"  # Get parameters W
 CMD_GET_SG = "sg"  # Unknown function
 
 # Command prefixes
+# Command prefixes
 CMD_TRANSMIT = "ss"  # Schellenberg transmit prefix for device commands
-GROUP_CHANNEL_ALL = "05"  # Schellenberg 5-channel remotes use channel 5 as group/all
 
 # Dispatcher signals
 SIGNAL_DEVICE_EVENT = f"{DOMAIN}_device_event"
@@ -97,6 +97,10 @@ SIGNAL_PAIRING_STARTED = f"{DOMAIN}_pairing_started"
 SIGNAL_PAIRING_TIMEOUT = f"{DOMAIN}_pairing_timeout"
 SIGNAL_STICK_STATUS_UPDATED = f"{DOMAIN}_stick_status_updated"
 SIGNAL_CALIBRATION_COMPLETED = f"{DOMAIN}_calibration_completed"
+SIGNAL_REMOTE_EVENT = f"{DOMAIN}_remote_event"  # For forwarding remote button presses to entities
+
+# Native Group Command Channel
+GROUP_CHANNEL_ALL = "05"  # Often used for 'all' blinds on 5-channel remotes
 
 # Home Assistant event names
 EVENT_REMOTE_BUTTON_PRESSED = f"{DOMAIN}_remote_button_pressed"

@@ -46,6 +46,7 @@ from .const import (
     GROUP_CHANNEL_ALL,
     SIGNAL_DEVICE_EVENT,
     SIGNAL_STICK_STATUS_UPDATED,
+    SIGNAL_REMOTE_EVENT,
     VERIFY_TIMEOUT,
 )
 
@@ -63,7 +64,10 @@ class SchellenbergUsbApi:
         self._protocol: SchellenbergProtocol | None = None
         self._registered_devices: dict[
             str, str
-        ] = {}  # Dict[device_id, device_enum] for registered entities
+        ] = {}  # Dict: device_id -> device_enum for registered blind entities
+        self._registered_remotes: dict[
+            str, dict[str, str]
+        ] = {}  # Dict: remote_id -> {channel: ...} for registered remotes
         self._is_connecting = False
         self._pairing_future: asyncio.Future[str] | None = None
         self._remote_learning_future: asyncio.Future[dict[str, str]] | None = None
@@ -85,7 +89,13 @@ class SchellenbergUsbApi:
 
     @staticmethod
     def _command_to_button(command: str) -> str | None:
-        """Map Schellenberg command bytes to remote button names."""
+        """Translate a Schellenberg command byte to a human‑readable button name.
+
+        The USB stick reports blind motor actions as two‑character hex command codes.
+        Home Assistant only needs to know the semantic button (up/down/stop) for
+        remote learning and UI display, so this helper maps the known command bytes
+        to their corresponding button labels. Unknown commands return ``None``.
+        """
         return {
             CMD_UP: "up",
             CMD_DOWN: "down",
@@ -96,7 +106,12 @@ class SchellenbergUsbApi:
 
     @staticmethod
     def _normalize_channel(device_enum: str) -> str:
-        """Return a stable channel label from the remote/channel byte."""
+        """Normalize the channel portion of a device enum.
+
+        The Schellenberg protocol encodes the channel as a two‑character hex byte.
+        For user‑friendly logging and UI we convert a valid channel (1‑5) to its
+        decimal string representation while leaving other values untouched.
+        """
         try:
             channel = int(device_enum, 16)
         except ValueError:
@@ -177,7 +192,11 @@ class SchellenbergUsbApi:
 
     @callback
     def _handle_message(self, message: str) -> None:
-        """Handle incoming messages from the protocol."""
+        """Handle incoming messages from the protocol.
+
+        This method parses raw strings received from the USB stick and dispatches
+        them to the appropriate handlers (pairing, remote learning, or device events).
+        """
         _LOGGER.debug("Received raw message: %s", message)
 
         # Handle device verification response (format: RFTU_V20 F:20180510_DFBD B:1)
@@ -219,8 +238,10 @@ class SchellenbergUsbApi:
             return
 
         if message == "tE":
-            _LOGGER.warning("Transmit error - stick busy, will retry in 50ms")
-            # Schedule a retry if we have a pending command
+            _LOGGER.warning("Transmit error - stick busy, will retry in 100ms")
+            # Design decision: The USB stick sometimes returns 'tE' (Transmit Error)
+            # when it's still processing a previous command. We implement a simple
+            # retry mechanism to improve reliability without blocking the main loop.
             if self._pending_retry_command:
                 if self._retry_task and not self._retry_task.done():
                     self._retry_task.cancel()
@@ -245,6 +266,7 @@ class SchellenbergUsbApi:
         if message.startswith("sl") and len(message) >= 8:
             # Extract the device ID: skip "sl" (2 chars) + "00BE" (4 chars) = 6 chars
             # Then take the next 6 characters (3 bytes as hex) = 6 chars
+            # This format is specific to pairing responses from the stick.
             device_id = message[6:12]
             _LOGGER.debug(
                 "Received pairing/list response: %s, extracted device ID: %s",
@@ -283,6 +305,14 @@ class SchellenbergUsbApi:
         # RR = signal strength (2 chars, ignored)
         if message.startswith("ss") and len(message) >= 18:
             try:
+                # Schellenberg protocol message format:
+                # ss [2] - Prefix
+                # XX [2] - Device Enumerator (channel/ID mapped by stick)
+                # YYYYYY [6] - Unique Device ID
+                # ZZZZ [4] - Message counter / rolling code (ignored here)
+                # CC [2] - Command/Status code
+                # PP [2] - Padding/Signal strength info
+                # RR [2] - Signal strength (RSSI)
                 device_enum = message[2:4]
                 device_id = message[4:10]
                 # Skip message incrementor at positions 10:14
@@ -317,6 +347,7 @@ class SchellenbergUsbApi:
                 if button is not None and (
                     not is_registered_device or is_learning_remote
                 ):
+                    # Handle messages from remotes (either new discovery or learning mode)
                     self._handle_remote_message(
                         remote_id=device_id,
                         channel=self._normalize_channel(device_enum),
@@ -380,8 +411,26 @@ class SchellenbergUsbApi:
         )
         self.hass.bus.async_fire(EVENT_REMOTE_BUTTON_PRESSED, event_data)
 
+        # Forward to the specific remote entity via dispatcher
+        if remote_id in self._registered_remotes:
+            async_dispatcher_send(
+                self.hass,
+                f"{SIGNAL_REMOTE_EVENT}_{remote_id}",
+                button,
+                command,
+            )
+        else:
+            _LOGGER.debug(
+                "Remote ID %s is not registered; no entity to forward to.",
+                remote_id,
+            )
+
     async def send_command(self, command: str) -> None:
-        """Send a command to the USB stick."""
+        """Send a raw command to the USB stick.
+
+        Appends the required CRLF and encodes to ASCII.
+        The last sent command is stored for potential retries on 'stick busy' errors.
+        """
         if self._transport is None or self._transport.is_closing():
             _LOGGER.warning("Serial port not connected. Command dropped: %s", command)
             return
@@ -509,6 +558,10 @@ class SchellenbergUsbApi:
         The 5-channel remotes use their fifth/all channel for simultaneous group
         operation. The USB stick exposes the same radio transmit shape as single
         devices, so we address the configured virtual group enum directly.
+
+        Args:
+            action: Command to send (CMD_UP, CMD_DOWN, CMD_STOP)
+            group_id: Hex ID of the group. Defaults to '05' (all channels on standard remote).
         """
         if action not in (CMD_UP, CMD_DOWN, CMD_STOP):
             _LOGGER.error("Invalid group action: %s", action)
@@ -533,7 +586,11 @@ class SchellenbergUsbApi:
     async def learn_remote_and_wait(
         self, timeout: float = 30
     ) -> dict[str, str] | None:
-        """Wait for the next physical remote button press and return its details."""
+        """Wait for the next physical remote button press and return its details.
+
+        This is used for the remote learning feature in the UI. It creates a future
+        that is resolved when a button press is detected in _handle_remote_message.
+        """
         if self._remote_learning_future and not self._remote_learning_future.done():
             _LOGGER.warning("Remote learning already in progress")
             return None
@@ -603,6 +660,48 @@ class SchellenbergUsbApi:
                 _LOGGER.debug(
                     "Registered existing device %s with enum %s", device_id, device_enum
                 )
+
+    def register_existing_remotes(self, remotes: list[dict]) -> None:
+        """Register known remotes (persisted from config storage).
+
+        Args:
+            remotes: List of remote config dicts with 'remote_id' and 'channel' keys.
+        """
+        for remote in remotes:
+            remote_id = remote.get("remote_id")
+            channel = remote.get("channel")
+            if remote_id and channel is not None:
+                self._registered_remotes[remote_id] = {"channel": channel}
+                _LOGGER.debug(
+                    "Registered known remote %s on channel %s", remote_id, channel
+                )
+
+    def register_remote(self, remote_id: str, channel: str) -> None:
+        """Register a remote entity & persist its ID.
+
+        Args:
+            remote_id: The 6-character hex ID of the Schellenberg remote.
+            channel: The remote channel (e.g. "1" to "5").
+
+        Once registered, future button presses will be forwarded to
+        the matching entities.
+        """
+        self._registered_remotes[remote_id] = {"channel": channel}
+        _LOGGER.info(
+            "Registered remote %s on channel %s", remote_id, channel
+        )
+
+    def is_remote_known(self, remote_id: str) -> bool:
+        """Check if a remote ID has been registered.
+
+        Args:
+            remote_id: The 6-character hex ID of the Schellenberg remote.
+
+        Returns:
+            True if a remote with this ID exists in the registered set.
+
+        """
+        return remote_id in self._registered_remotes
 
     def remove_known_device(self, device_id: str) -> None:
         """Remove a device from the registered entities.

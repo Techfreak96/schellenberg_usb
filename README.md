@@ -15,7 +15,9 @@ Home Assistant component that interfaces with the [Schellenberg Usb Funk-Stick](
 ## Features
 
 * Supports blind movement Up, Down, and Stop
-* After calibation, position tracking is possible.
+* After calibration, position tracking is possible.
+* **Remote Learning Mode**: Capture button presses from physical Schellenberg remotes for automation.
+* **Native Group Control**: Command groups of blinds simultaneously, mirroring Schellenberg 5-channel remotes.
 
 ## Installation
 
@@ -114,12 +116,67 @@ These motors are controlled via external switches or remote controls. Pairing is
 
 To enter pairing mode, refer to your specific remote control or timer switch manual. The pairing button combination varies by the control device used.
 
-### General Tips
+### Remote Learning
 
-- Keep the USB Funk-Stick within range (approx. 20m indoors, 100m outdoors)
-- Avoid metal obstructions between the stick and the motor
-- If pairing fails, try moving the USB stick closer to the device
-- Consult your device's manual for the exact pairing procedure if the above doesn't work
+This feature allows you to "listen" for button presses from your physical Schellenberg remote controls, even if they are not directly paired as a device in Home Assistant. This is useful for:
+- **Identifying unknown remotes**: Discover the `remote_id`, `channel`, and `button` data of any Schellenberg remote.
+- **Triggering automations**: Use remote button presses to trigger Home Assistant automations for any Schellenberg device, regardless of whether it's linked to a blind or not.
+
+#### How to use Remote Learning
+
+1. Go to **Developer Tools > Events** in Home Assistant.
+2. In the "Listen to events" box, type `schellenberg_usb_remote_button_pressed` and click **Start Listening**.
+3. Press a button on your Schellenberg remote control.
+4. You will see an event fired with details like `remote_id`, `channel`, and `button`. You can use this data to create automations.
+
+Example automation snippet (listening for an "up" button press on a specific remote):
+
+```yaml
+automation:
+  - alias: "Schellenberg Remote Up Button Pressed"
+    trigger:
+      platform: event
+      event_type: schellenberg_usb_remote_button_pressed
+      event_data:
+        remote_id: "123456" # Replace with your remote's ID
+        button: "up"
+    action:
+      # Your automation actions here
+      - service: light.turn_on
+        entity_id: light.living_room_lights
+```
 
 > [!NOTE]
 > The pairing instructions above are based on common Schellenberg products. Your specific device may have different procedures - always refer to the device's original manual if unsure.
+
+### Native Group Control
+
+This integration supports controlling groups of Schellenberg devices, similar to how a 5-channel remote can control individual channels or all channels simultaneously. This is particularly useful for controlling multiple blinds with a single command.
+
+#### How to use Native Group Control
+
+To control a group, you can use the `schellenberg_usb.control_native_group` service in Home Assistant. This service takes two parameters:
+
+- `action`: The desired action (`up`, `down`, `stop`).
+- `group_id` (optional): The 2-character hexadecimal group ID. If omitted, the command will be sent to all channels (`FF`). Common group IDs are `01` to `05` for individual channels when controlling a group, or `FF` for all.
+
+Example service calls:
+
+```yaml
+# Move all blinds associated with group channel 01 up
+- service: schellenberg_usb.control_native_group
+  data:
+    action: "up"
+    group_id: "01"
+
+# Stop all blinds associated with group channel FF (all)
+- service: schellenberg_usb.control_native_group
+  data:
+    action: "stop"
+    group_id: "FF"
+
+# Move all blinds up (equivalent to group_id: "FF")
+- service: schellenberg_usb.control_native_group
+  data:
+    action: "up"
+```
