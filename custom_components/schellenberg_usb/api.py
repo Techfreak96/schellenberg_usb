@@ -95,6 +95,10 @@ class SchellenbergUsbApi:
         # Auto-discovery: track devices we've already notified about
         self._discovered_devices: set[str] = set()
 
+        # Safety lock: prevent DOWN commands per device_id when locked
+        # True = DOWN blocked, False = unrestricted
+        self._blind_locks: dict[str, bool] = {}
+
     @staticmethod
     def _command_to_button(command: str) -> str | None:
         """Translate a Schellenberg command byte to a human‑readable button name.
@@ -595,16 +599,29 @@ class SchellenbergUsbApi:
         except OSError as err:
             _LOGGER.debug("Error stopping pairing mode (communication error): %s", err)
 
-    async def control_blind(self, device_enum: str, action: str) -> None:
+    async def control_blind(
+        self, device_enum: str, action: str, device_id: str | None = None
+    ) -> None:
         """Send a control command to a specific blind.
 
         Args:
             device_enum: The device enumerator (hex string like "10")
             action: Command (CMD_UP, CMD_DOWN, CMD_STOP)
+            device_id: Optional device ID for safety lock check.
+                       If provided and the blind is locked, CMD_DOWN is blocked.
 
         """
         if action not in (CMD_UP, CMD_DOWN, CMD_STOP):
             _LOGGER.error("Invalid blind action: %s", action)
+            return
+
+        # Safety lock: block DOWN commands when the blind is locked
+        if action == CMD_DOWN and device_id and self._blind_locks.get(device_id, False):
+            _LOGGER.warning(
+                "Blind %s (enum=%s) is LOCKED. DOWN command blocked by safety lock.",
+                device_id,
+                device_enum,
+            )
             return
 
         # Format: ssXX9AAZZZ
@@ -612,6 +629,28 @@ class SchellenbergUsbApi:
         command = f"{CMD_TRANSMIT}{device_enum}9{action}0000"
         _LOGGER.debug("Sending blind control: %s", command)
         await self.send_command(command)
+
+    def set_blind_lock(self, device_id: str, locked: bool) -> None:
+        """Set the safety lock state for a specific blind.
+
+        When locked, all CMD_DOWN (close) commands for this blind will be
+        blocked with a warning log. CMD_UP (open) and CMD_STOP (stop) are
+        always allowed for safety reasons.
+
+        This can be called from HA automations (e.g., via a door contact
+        sensor) to prevent blinds from closing when a window/door is open.
+
+        Args:
+            device_id: The 6-character hex device ID to lock/unlock.
+            locked: True to block DOWN commands, False to allow them.
+
+        """
+        self._blind_locks[device_id] = locked
+        _LOGGER.info(
+            "Safety lock for blind %s is now %s",
+            device_id,
+            "LOCKED (DOWN blocked)" if locked else "UNLOCKED",
+        )
 
     async def control_native_group(
         self, action: str, group_id: str | None = None

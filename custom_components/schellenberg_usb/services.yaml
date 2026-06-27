@@ -26,3 +26,21 @@ send_native_group_command:
       required: false
       selector:
         text:
+
+set_blind_lock:
+  name: Set blind safety lock
+  description: Lock or unlock a blind to prevent it from closing (DOWN command). When locked, the blind can still be opened or stopped for safety reasons.
+  fields:
+    device_id:
+      name: Device ID
+      description: The 6-character hex device ID of the blind (e.g., A1B2C3). Find it in the device info or logs.
+      required: true
+      selector:
+        text:
+    locked:
+      name: Locked
+      description: Set to true to block DOWN commands, false to allow them again.
+      required: false
+      default: true
+      selector:
+        boolean:

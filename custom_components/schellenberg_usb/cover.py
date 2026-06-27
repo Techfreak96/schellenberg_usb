@@ -498,7 +498,7 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
                         # If target is 0 or 100, let the device stop naturally at its limits.
                         # For intermediate, send STOP and wait for STOP event to finalize & clear target.
                         if self._target_position not in (0, 100):
-                            await self._api.control_blind(self._device_enum, CMD_STOP)
+                            await self._api.control_blind(self._device_enum, CMD_STOP, device_id=self._device_id)
                         # Stop tracking loop
                         self._position_update_task = None
                         # Leave opening/closing flags as-is until STOP to aid debugging
@@ -603,7 +603,7 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         self._move_start_position = self._attr_current_cover_position
         self._start_position_tracking()
         self.async_write_ha_state()
-        await self._api.control_blind(self._device_enum, CMD_UP)
+        await self._api.control_blind(self._device_enum, CMD_UP, device_id=self._device_id)
 
     async def async_close_cover(self, **kwargs: Any) -> None:
         """Close cover."""
@@ -616,7 +616,7 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         self._move_start_position = self._attr_current_cover_position
         self._start_position_tracking()
         self.async_write_ha_state()
-        await self._api.control_blind(self._device_enum, CMD_DOWN)
+        await self._api.control_blind(self._device_enum, CMD_DOWN, device_id=self._device_id)
 
     async def async_stop_cover(self, **kwargs: Any) -> None:
         """Stop the cover."""
@@ -629,7 +629,7 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         self._move_start_position = None
         self._target_position = None
         self.async_write_ha_state()
-        await self._api.control_blind(self._device_enum, CMD_STOP)
+        await self._api.control_blind(self._device_enum, CMD_STOP, device_id=self._device_id)
 
     async def async_set_cover_position(self, **kwargs: Any) -> None:
         """Move the cover to a specific position."""

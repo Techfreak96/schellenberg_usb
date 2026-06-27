@@ -20,6 +20,7 @@ from homeassistant.helpers.service_info.usb import UsbServiceInfo
 from .const import (
     CONF_CLOSE_TIME,
     CONF_OPEN_TIME,
+    CONF_REMOTE_CONTROLS,
     CONF_SERIAL_PORT,
     DOMAIN,
     SUBENTRY_TYPE_BLIND,
@@ -220,14 +221,95 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Entry point when the user clicks the 'Pair device' button.
 
-        Home Assistant calls async_step_{subentry_type}() where subentry_type is
-        the key returned by async_get_supported_subentry_types. Since our type is
-        'blind', we implement async_step_blind(). Previously this was named
-        async_step_pairing, which caused the flow to fall back and the
-        translation key for the initiate button to be missing.
+        This now shows a type selection: "What do you want to add?"
+        - Blind → runs active pairing (send commands, wait for motor)
+        - Remote → passive listening (capture remote ID)
         """
         _LOGGER.debug("Subentry blind flow initiated (pairing new device)")
-        return await self.async_step_user(user_input)
+        return await self.async_step_select_type(user_input)
+
+    async def async_step_select_type(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Let the user choose between pairing a blind or a remote."""
+        if user_input is not None:
+            device_type = user_input.get("device_type")
+            if device_type == "blind":
+                return await self.async_step_user()
+            if device_type == "remote":
+                return await self.async_step_learn_remote()
+
+        return self.async_show_form(
+            step_id="select_type",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("device_type"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                ("blind", "Blind / Roller Shutter"),
+                                ("remote", "Remote Control"),
+                            ],
+                        )
+                    ),
+                }
+            ),
+        )
+
+    async def async_step_learn_remote(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Passively learn a remote by listening for its button press."""
+        hub_entry = self._get_entry()
+        api = hub_entry.runtime_data
+
+        if user_input is not None:
+            remote = await api.learn_remote_and_wait()
+            if remote is None:
+                return self.async_abort(reason="remote_learning_timeout")
+
+            remote_id = remote["remote_id"]
+            channel = remote["channel"]
+
+            # Persist to entry.options
+            updated_options = dict(hub_entry.options)
+            remotes = list(updated_options.get(CONF_REMOTE_CONTROLS, []))
+            # Avoid duplicates
+            remotes = [
+                r
+                for r in remotes
+                if not (r.get("remote_id") == remote_id and r.get("channel") == channel)
+            ]
+            remotes.append(
+                {
+                    "remote_name": user_input.get("remote_name")
+                    or f"Remote {remote_id}",
+                    "remote_id": remote_id,
+                    "channel": channel,
+                    "last_button": remote["button"],
+                }
+            )
+            updated_options[CONF_REMOTE_CONTROLS] = remotes
+            self.hass.config_entries.async_update_entry(
+                hub_entry, options=updated_options
+            )
+            # Reload to create the event entity
+            await self.hass.config_entries.async_reload(hub_entry.entry_id)
+            return self.async_create_entry(
+                title=f"Remote {remote_id}",
+                data={},
+            )
+
+        return self.async_show_form(
+            step_id="learn_remote",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("remote_name"): selector.TextSelector(),
+                }
+            ),
+            description_placeholders={
+                "instruction": "Press any button on the physical remote within 30 seconds"
+            },
+        )
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None

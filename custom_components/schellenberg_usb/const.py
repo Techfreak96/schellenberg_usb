@@ -108,6 +108,7 @@ EVENT_REMOTE_BUTTON_PRESSED = f"{DOMAIN}_remote_button_pressed"
 
 # Services
 SERVICE_SEND_NATIVE_GROUP_COMMAND = "send_native_group_command"
+SERVICE_SET_BLIND_LOCK = "set_blind_lock"
 
 # Device verification
 VERIFY_TIMEOUT = 5  # seconds to wait for verification response

@@ -104,6 +104,41 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
+
+    # Register safety lock service
+    async def _async_set_blind_lock(call) -> None:
+        """Lock or unlock a blind to prevent DOWN commands."""
+        entries = hass.config_entries.async_entries(DOMAIN)
+        entry = next(
+            (
+                item
+                for item in entries
+                if CONF_SERIAL_PORT in item.data
+                and getattr(item, "runtime_data", None)
+            ),
+            None,
+        )
+        if entry is None:
+            _LOGGER.error("No active Schellenberg USB hub found for lock service")
+            return
+
+        api: SchellenbergUsbApi = entry.runtime_data
+        api.set_blind_lock(
+            call.data["device_id"],
+            call.data.get("locked", True),
+        )
+
+    hass.services.async_register(
+        DOMAIN,
+        "set_blind_lock",
+        _async_set_blind_lock,
+        schema=vol.Schema(
+            {
+                vol.Required("device_id"): cv.string,
+                vol.Optional("locked", default=True): cv.boolean,
+            }
+        ),
+    )
     _SERVICES_REGISTERED = True
 
 
