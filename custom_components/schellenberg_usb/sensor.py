@@ -15,8 +15,10 @@ from .const import (
     DOMAIN,
     SIGNAL_RSSI_UPDATED,
     SIGNAL_STICK_STATUS_UPDATED,
+    SIGNAL_WINDOW_SENSOR,
     SUBENTRY_TYPE_BLIND,
     SUBENTRY_TYPE_HUB,
+    SUBENTRY_TYPE_WINDOW_SENSOR,
     SchellenbergConfigEntry,
 )
 
@@ -49,6 +51,8 @@ async def async_setup_entry(
 
     # Create per-blind RSSI sensors from subentries
     blind_sensors: list[SensorEntity] = []
+    window_sensors: list[SensorEntity] = []
+
     for subentry in entry.subentries.values():
         if subentry.subentry_type == SUBENTRY_TYPE_BLIND:
             device_id = subentry.data.get("device_id")
@@ -63,14 +67,32 @@ async def async_setup_entry(
                     )
                 )
 
+        # Create window handle sensor entities
+        if subentry.subentry_type == SUBENTRY_TYPE_WINDOW_SENSOR:
+            device_id = subentry.data.get("device_id")
+            device_name = subentry.title or f"Window Sensor {device_id}"
+            if device_id:
+                window_sensors.append(
+                    SchellenbergWindowSensor(
+                        api=api,
+                        entry=entry,
+                        device_id=device_id,
+                        device_name=device_name,
+                    )
+                )
+
     _LOGGER.debug(
-        "Setting up %d hub sensors and %d blind RSSI sensors",
+        "Setting up %d hub sensors, %d blind RSSI sensors, "
+        "and %d window sensors",
         len(sensors),
         len(blind_sensors),
+        len(window_sensors),
     )
     async_add_entities(sensors, config_subentry_id=hub_subentry_id)
     if blind_sensors:
         async_add_entities(blind_sensors)
+    if window_sensors:
+        async_add_entities(window_sensors)
 
 
 class SchellenbergBaseSensor(SensorEntity):
@@ -260,4 +282,80 @@ class SchellenbergRssiSensor(SensorEntity):
     @callback
     def _handle_rssi_update(self, rssi: int) -> None:
         """Update state when new RSSI data arrives."""
+        self.async_write_ha_state()
+
+
+class SchellenbergWindowSensor(SensorEntity):
+    """Represents a Schellenberg window handle sensor.
+
+    These unidirectional sensors report their handle position (closed,
+    tilted, open) via radio signals received by the USB stick. The
+    state updates in real-time whenever the handle is moved.
+    """
+
+    _attr_has_entity_name = True
+    _attr_should_poll = False
+    _attr_translation_key = "window_handle"
+    _attr_device_class = "window"
+
+    def __init__(
+        self,
+        api: SchellenbergUsbApi,
+        entry: SchellenbergConfigEntry,
+        device_id: str,
+        device_name: str,
+    ) -> None:
+        """Initialize the window sensor.
+
+        Args:
+            api: The API instance.
+            entry: The config entry.
+            device_id: 6-char hex ID of the sensor.
+            device_name: Friendly name for display.
+
+        """
+        self.api = api
+        self._device_id = device_id
+        self._attr_unique_id = f"{entry.entry_id}_window_{device_id}"
+        self._attr_name = device_name
+        self._attr_native_value = "unknown"
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, device_id)},
+        )
+
+    @property
+    def available(self) -> bool:
+        """Return if entity is available."""
+        return self.api.is_connected
+
+    @property
+    def icon(self) -> str:
+        """Return the icon based on window state."""
+        state_map = {
+            "closed": "mdi:window-closed-variant",
+            "tilted": "mdi:window-open-variant",
+            "open": "mdi:window-open",
+        }
+        return state_map.get(str(self._attr_native_value), "mdi:window-closed")
+
+    async def async_added_to_hass(self) -> None:
+        """Subscribe to window sensor state updates."""
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                f"{SIGNAL_WINDOW_SENSOR}_{self._device_id}",
+                self._handle_window_event,
+            )
+        )
+
+    @callback
+    def _handle_window_event(self, state: str, command: str) -> None:
+        """Update state on window handle event."""
+        _LOGGER.debug(
+            "Window sensor %s state changed: %s (cmd=%s)",
+            self._device_id,
+            state,
+            command,
+        )
+        self._attr_native_value = state
         self.async_write_ha_state()

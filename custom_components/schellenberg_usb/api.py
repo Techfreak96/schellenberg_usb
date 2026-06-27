@@ -49,6 +49,7 @@ from .const import (
     SIGNAL_RSSI_UPDATED,
     SIGNAL_STICK_STATUS_UPDATED,
     SIGNAL_REMOTE_EVENT,
+    SIGNAL_WINDOW_SENSOR,
     VERIFY_TIMEOUT,
 )
 
@@ -131,6 +132,25 @@ class SchellenbergUsbApi:
         if 1 <= channel <= 5:
             return str(channel)
         return device_enum
+
+    @staticmethod
+    def _command_to_window_state(command: str) -> str | None:
+        """Map a command byte to a window handle sensor state.
+
+        Window handle sensors (Device Enumerator 0x14) report their
+        position using specific command bytes. Returns a human-readable
+        state string or None if the command is not a window sensor event.
+        """
+        from .const import (
+            SENSOR_WINDOW_HANDLE_0,
+            SENSOR_WINDOW_HANDLE_90,
+            SENSOR_WINDOW_HANDLE_180,
+        )
+        return {
+            SENSOR_WINDOW_HANDLE_0: "closed",
+            SENSOR_WINDOW_HANDLE_90: "tilted",
+            SENSOR_WINDOW_HANDLE_180: "open",
+        }.get(command)
 
     async def connect(self) -> None:
         """Establish a connection to the serial port."""
@@ -346,6 +366,35 @@ class SchellenbergUsbApi:
                             )
                     except (ValueError, IndexError):
                         pass  # Incomplete or corrupted RSSI bytes
+
+                # Check if this is a window handle sensor message
+                window_state = self._command_to_window_state(command)
+                if window_state is not None:
+                    _LOGGER.debug(
+                        "Window sensor %s (enum=%s) state: %s",
+                        device_id, device_enum, window_state,
+                    )
+                    async_dispatcher_send(
+                        self.hass,
+                        f"{SIGNAL_WINDOW_SENSOR}_{device_id}",
+                        window_state,
+                        command,
+                    )
+                    # Auto-discovery for new window sensors
+                    if device_id not in self._discovered_devices:
+                        self._discovered_devices.add(device_id)
+                        persistent_notification.async_create(
+                            self.hass,
+                            (
+                                f"A Schellenberg window handle sensor was detected: "
+                                f"**{device_id}** (state: {window_state}).\n\n"
+                                "Go to **Settings > Devices & Services > Schellenberg USB** "
+                                "to add it permanently."
+                            ),
+                            title="Schellenberg Window Sensor Detected",
+                            notification_id=f"{DOMAIN}_window_{device_id}",
+                        )
+                    return  # Don't process as blind command
 
                 _LOGGER.debug(
                     "Parsed: enum=%s, id=%s, cmd=%s", device_enum, device_id, command

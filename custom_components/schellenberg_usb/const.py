@@ -22,6 +22,7 @@ PLATFORMS = ["cover", "event", "sensor", "switch"]
 SUBENTRY_TYPE_LED = "led"
 SUBENTRY_TYPE_HUB = "hub"
 SUBENTRY_TYPE_BLIND = "blind"
+SUBENTRY_TYPE_WINDOW_SENSOR = "window_sensor"
 
 # Configuration keys
 CONF_SERIAL_PORT = "serial_port"
@@ -99,6 +100,7 @@ SIGNAL_STICK_STATUS_UPDATED = f"{DOMAIN}_stick_status_updated"
 SIGNAL_CALIBRATION_COMPLETED = f"{DOMAIN}_calibration_completed"
 SIGNAL_REMOTE_EVENT = f"{DOMAIN}_remote_event"  # For forwarding remote button presses to entities
 SIGNAL_RSSI_UPDATED = f"{DOMAIN}_rssi_updated"  # Signal strength updates
+SIGNAL_WINDOW_SENSOR = f"{DOMAIN}_window_sensor"  # Window handle sensor state updates
 
 # Native Group Command Channel
 GROUP_CHANNEL_ALL = "05"  # Often used for 'all' blinds on 5-channel remotes

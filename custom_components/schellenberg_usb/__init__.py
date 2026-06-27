@@ -123,10 +123,33 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             return
 
         api: SchellenbergUsbApi = entry.runtime_data
-        api.set_blind_lock(
-            call.data["device_id"],
-            call.data.get("locked", True),
-        )
+        device_id = call.data.get("device_id")
+
+        # Support entity_id as an alternative (easier for users)
+        entity_ids = call.data.get("entity_id")
+        if not device_id and entity_ids:
+            from homeassistant.helpers import entity_registry as er
+            entity_reg = er.async_get(hass)
+            for eid in (entity_ids if isinstance(entity_ids, list) else [entity_ids]):
+                entity_entry = entity_reg.async_get(eid)
+                if entity_entry:
+                    # Try to find device_id from the entry's config subentry
+                    if entity_entry.config_subentry_id:
+                        subentry = entry.subentries.get(
+                            entity_entry.config_subentry_id
+                        )
+                        if subentry:
+                            device_id = subentry.data.get("device_id")
+                            if device_id:
+                                break
+
+        if not device_id:
+            _LOGGER.error(
+                "No device_id or entity_id provided for lock service"
+            )
+            return
+
+        api.set_blind_lock(device_id, call.data.get("locked", True))
 
     hass.services.async_register(
         DOMAIN,
@@ -134,7 +157,8 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _async_set_blind_lock,
         schema=vol.Schema(
             {
-                vol.Required("device_id"): cv.string,
+                vol.Optional("device_id"): cv.string,
+                vol.Optional("entity_id"): vol.All(cv.ensure_list, [cv.string]),
                 vol.Optional("locked", default=True): cv.boolean,
             }
         ),

@@ -1,7 +1,6 @@
 """Config flow for Schellenberg USB integration."""
 
-from __future__ import annotations
-
+import asyncio
 import logging
 from typing import Any, Awaitable, cast
 
@@ -24,6 +23,7 @@ from .const import (
     CONF_SERIAL_PORT,
     DOMAIN,
     SUBENTRY_TYPE_BLIND,
+    SUBENTRY_TYPE_WINDOW_SENSOR,
 )
 from .options_flow import SchellenbergOptionsFlowHandler
 from .options_flow_calibration import CalibrationFlowHandler
@@ -50,8 +50,10 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         cls, config_entry: config_entries.ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
-        # Use constant for subentry type so strings/json and code stay in sync
-        return {SUBENTRY_TYPE_BLIND: SchellenbergPairingSubentryFlow}
+        return {
+            SUBENTRY_TYPE_BLIND: SchellenbergPairingSubentryFlow,
+            SUBENTRY_TYPE_WINDOW_SENSOR: SchellenbergWindowSensorSubentryFlow,
+        }
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -462,4 +464,84 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
         handler = self._get_calibration_handler()
         return await self._await_subentry_result(
             handler.async_step_calibration_complete(user_input)
+        )
+
+
+class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
+    """Flow for adding a window handle sensor as a subentry."""
+
+    VERSION = 1
+
+    async def async_step_window_sensor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Entry point for adding a window sensor.
+
+        Prompts the user to press the window handle so the stick can
+        capture the sensor's device ID from the radio message.
+        """
+        _LOGGER.debug("Window sensor subentry flow initiated")
+        return await self.async_step_listen(user_input)
+
+    async def async_step_listen(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Listen for a window sensor signal from the stick."""
+        hub_entry = self._get_entry()
+        api = hub_entry.runtime_data
+
+        if user_input is not None:
+            # Wait for next window sensor event
+            window_future: asyncio.Future[dict[str, str]] = (
+                hub_entry.runtime_data.hass.loop.create_future()
+            )
+            unsub = None
+
+            def _on_window_sensor(device_id: str, state: str, command: str) -> None:
+                if not window_future.done():
+                    window_future.set_result({
+                        "device_id": device_id,
+                        "state": state,
+                    })
+
+            unsub = api.hass.bus.async_listen_once(
+                f"{DOMAIN}_window_sensor_event",
+                lambda event: _on_window_sensor(
+                    event.data.get("device_id", ""),
+                    event.data.get("state", ""),
+                    event.data.get("command", ""),
+                ),
+            )
+
+            try:
+                result = await asyncio.wait_for(window_future, timeout=60)
+                device_id = result["device_id"]
+            except TimeoutError:
+                return self.async_abort(reason="window_sensor_timeout")
+            finally:
+                if unsub:
+                    unsub()
+
+            # Create the subentry
+            device_name = user_input.get("name") or f"Window Sensor {device_id}"
+            return self.async_create_entry(
+                title=device_name,
+                data={
+                    "device_id": device_id,
+                    "type": "window_sensor",
+                },
+            )
+
+        return self.async_show_form(
+            step_id="listen",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional("name"): selector.TextSelector(),
+                }
+            ),
+            description_placeholders={
+                "instruction": (
+                    "Open and close the window handle so the stick can detect it."
+                ),
+            },
         )

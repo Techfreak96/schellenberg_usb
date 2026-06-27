@@ -29,14 +29,23 @@ send_native_group_command:
 
 set_blind_lock:
   name: Set blind safety lock
-  description: Lock or unlock a blind to prevent it from closing (DOWN command). When locked, the blind can still be opened or stopped for safety reasons.
+  description: Lock or unlock a blind to prevent it from closing (DOWN command). When locked, the blind can still be opened or stopped for safety reasons. You can use either device_id or entity_id to identify the blind.
   fields:
     device_id:
       name: Device ID
       description: The 6-character hex device ID of the blind (e.g., A1B2C3). Find it in the device info or logs.
-      required: true
+      required: false
       selector:
         text:
+    entity_id:
+      name: Entity
+      description: Select the cover entity to lock/unlock. Easier than finding the device ID.
+      required: false
+      selector:
+        entity:
+          domain: cover
+          integration: schellenberg_usb
+          multiple: false
     locked:
       name: Locked
       description: Set to true to block DOWN commands, false to allow them again.
