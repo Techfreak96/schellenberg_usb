@@ -87,6 +87,32 @@
         "pairing_failed": "Pairing failed.",
         "reconfigure_successful": "Calibration completed successfully"
       }
+    },
+    "belt_drive": {
+      "entry_type": "Belt Drive (Rollodrive)",
+      "name": "Add belt drive"
+    },
+    "window_sensor": {
+      "entry_type": "Window Sensor",
+      "name": "Add window sensor",
+      "step": {
+        "user": {
+          "title": "Bind to blind",
+          "description": "Select which blind this window sensor belongs to."
+        },
+        "listen": {
+          "title": "Detect window sensor",
+          "description": "{instruction}"
+        },
+        "confirm": {
+          "title": "Confirm window sensor",
+          "description": "Found window sensor **{device_id}** bound to blind **{blind_id}**."
+        }
+      },
+      "abort": {
+        "window_sensor_timeout": "No window sensor signal was received within 60 seconds.",
+        "no_blinds": "No blinds are paired yet. Please pair a blind first."
+      }
     }
   },
   "options": {

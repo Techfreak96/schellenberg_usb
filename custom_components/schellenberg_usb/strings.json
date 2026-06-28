@@ -95,6 +95,10 @@
         "reconfigure_successful": "Calibration completed successfully"
       }
     },
+    "belt_drive": {
+      "name": "Add belt drive",
+      "description": "Add a Schellenberg belt drive (Gurtwickler/Rollodrive) that controls a belt winder."
+    },
     "window_sensor": {
       "name": "Add window sensor",
       "description": "Add a Schellenberg window handle sensor and bind it to a blind for automatic safety locking.",

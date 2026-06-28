@@ -86,8 +86,32 @@
         "pairing_timeout": "Kein Gerät hat innerhalb von 2 Minuten geantwortet. Bitte versuchen Sie es erneut.",
         "pairing_failed": "Kopplung fehlgeschlagen.",
         "reconfigure_successful": "Kalibrierung erfolgreich abgeschlossen"
-      }
-    }
+      }    },
+    "belt_drive": {
+      "entry_type": "Gurtwickler (Rollodrive)",
+      "name": "Gurtwickler hinzufügen"
+    },
+    "window_sensor": {
+      "entry_type": "Fenstersensor",
+      "name": "Fenstersensor hinzufügen",
+      "step": {
+        "user": {
+          "title": "Mit Rollladen verbinden",
+          "description": "Wählen Sie aus, zu welchem Rollladen dieser Fenstersensor gehört."
+        },
+        "listen": {
+          "title": "Fenstersensor erkennen",
+          "description": "{instruction}"
+        },
+        "confirm": {
+          "title": "Fenstersensor bestätigen",
+          "description": "Fenstersensor **{device_id}** gefunden, gebunden an Rollladen **{blind_id}**."
+        }
+      },
+      "abort": {
+        "window_sensor_timeout": "Innerhalb von 60 Sekunden wurde kein Fenstersensorsignal empfangen.",
+        "no_blinds": "Es wurden noch keine Rollläden gekoppelt. Bitte koppeln Sie zuerst einen Rollladen."
+      }    }
   },
   "options": {
     "step": {

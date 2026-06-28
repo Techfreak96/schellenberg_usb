@@ -87,6 +87,32 @@
         "pairing_failed": "Error en el emparejamiento.",
         "reconfigure_successful": "Calibración completada con éxito"
       }
+    },
+    "belt_drive": {
+      "entry_type": "Gurtwickler (Rollodrive)",
+      "name": "Añadir Gurtwickler"
+    },
+    "window_sensor": {
+      "entry_type": "Sensor de ventana",
+      "name": "Añadir sensor de ventana",
+      "step": {
+        "user": {
+          "title": "Vincular a persiana",
+          "description": "Seleccione a qué persiana pertenece este sensor de ventana."
+        },
+        "listen": {
+          "title": "Detectar sensor de ventana",
+          "description": "{instruction}"
+        },
+        "confirm": {
+          "title": "Confirmar sensor de ventana",
+          "description": "Sensor de ventana **{device_id}** encontrado, vinculado a persiana **{blind_id}**."
+        }
+      },
+      "abort": {
+        "window_sensor_timeout": "No se recibió ninguna señal del sensor de ventana en 60 segundos.",
+        "no_blinds": "Aún no hay persianas emparejadas. Empareje una persiana primero."
+      }
     }
   },
   "options": {
