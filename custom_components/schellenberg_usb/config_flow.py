@@ -258,19 +258,6 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
                 }
             ),
         )
-            data_schema=vol.Schema(
-                {
-                    vol.Required("device_type"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                ("blind", "Blind / Roller Shutter"),
-                                ("remote", "Remote Control"),
-                            ],
-                        )
-                    ),
-                }
-            ),
-        )
 
     async def async_step_learn_remote(
         self, user_input: dict[str, Any] | None = None
