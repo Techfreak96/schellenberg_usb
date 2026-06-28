@@ -57,11 +57,13 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration.
 
-        For now we return empty — device management runs entirely through
-        the OptionsFlow (gear icon), not via '+' buttons on the device card.
-        Legacy subentries (already-paired devices) remain untouched.
+        Only regular blinds (tubular motors) are available as subentries,
+        so the device card shows a single '+' button. Belt drives and
+        window sensors are managed through the OptionsFlow (gear icon).
         """
-        return {}
+        return {
+            SUBENTRY_TYPE_BLIND: SchellenbergPairingSubentryFlow,
+        }
 
     def __init__(self) -> None:
         """Initialize the config flow."""
