@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 
 import serial_asyncio
@@ -119,6 +120,15 @@ class SchellenbergUsbApi:
         self._reconnect_task: asyncio.Task[None] | None = None
         # Flag to distinguish intentional disconnect from unexpected connection loss
         self._disconnecting = False
+
+        # Rate limiting: minimum interval between serial commands
+        # The USB stick needs ~150ms between t1/t0 cycles; sending faster
+        # overwhelms it and causes "tE stick busy" cascades.
+        self._last_command_time: float = 0.0
+        self._command_rate_limit = 0.15  # 150ms between commands
+
+        # tE (stick busy) counter for rate-limited warning logging
+        self._tE_counter = 0
 
     @staticmethod
     def _command_to_button(command: str) -> str | None:
@@ -314,11 +324,21 @@ class SchellenbergUsbApi:
 
         # Handle acknowledgments
         if message in ("t1", "t0"):
-            # Transmit ACK — suppress per-message logging to avoid flooding
+            # Transmit ACK — suppress per-message logging to avoid flooding.
+            # Reset tE counter on successful handshake.
+            if message == "t0":
+                self._tE_counter = 0
             return
 
         if message == "tE":
-            _LOGGER.warning("Transmit error - stick busy, starting retry with exponential backoff")
+            # Suppress per-message tE log to guard against log flooding
+            # when the stick is overwhelmed (up to 170 tE/s observed).
+            self._tE_counter += 1
+            if self._tE_counter == 1 or self._tE_counter % 50 == 0:
+                _LOGGER.warning(
+                    "Transmit error #%d - stick busy, retrying with backoff",
+                    self._tE_counter,
+                )
             # The USB stick returns tE when still processing the previous command.
             # _retry_command_after_delay uses exponential backoff (100ms→200ms→400ms→800ms)
             # and up to 4 retry attempts before giving up.
@@ -603,6 +623,10 @@ class SchellenbergUsbApi:
         200ms, 400ms, ...). Retries only happen when we can confirm the
         transport is still connected.
 
+        Commands are rate-limited to prevent overwhelming the USB stick.
+        The stick requires ~150ms between t1/t0 cycles; sending faster
+        causes cascading "tE stick busy" errors.
+
         Args:
             command: The raw command string (without CRLF).
             retries: Number of additional retry attempts on tE.
@@ -612,6 +636,13 @@ class SchellenbergUsbApi:
         if self._transport is None or self._transport.is_closing():
             _LOGGER.warning("Serial port not connected. Command dropped: %s", command)
             return
+
+        # Rate limit: ensure minimum gap between commands
+        now = time.monotonic()
+        wait = self._command_rate_limit - (now - self._last_command_time)
+        if wait > 0:
+            await asyncio.sleep(wait)
+        self._last_command_time = time.monotonic()
 
         # Store for potential retry on "stick busy"
         self._pending_retry_command = command
@@ -629,7 +660,7 @@ class SchellenbergUsbApi:
         increasing delays: 100ms, 200ms, 400ms, 800ms (max 4 retries).
         """
         max_retries = 4
-        delay = 0.1  # 100ms initial
+        delay = 0.15  # 150ms initial (matches command rate limit)
         try:
             for attempt in range(max_retries):
                 try:
