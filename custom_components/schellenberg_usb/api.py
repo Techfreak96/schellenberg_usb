@@ -289,10 +289,10 @@ class SchellenbergUsbApi:
             return
 
         if message == "tE":
-            _LOGGER.warning("Transmit error - stick busy, will retry in 100ms")
-            # Design decision: The USB stick sometimes returns 'tE' (Transmit Error)
-            # when it's still processing a previous command. We implement a simple
-            # retry mechanism to improve reliability without blocking the main loop.
+            _LOGGER.warning("Transmit error - stick busy, starting retry with exponential backoff")
+            # The USB stick returns tE when still processing the previous command.
+            # _retry_command_after_delay uses exponential backoff (100ms→200ms→400ms→800ms)
+            # and up to 4 retry attempts before giving up.
             if self._pending_retry_command:
                 if self._retry_task and not self._retry_task.done():
                     self._retry_task.cancel()
@@ -565,17 +565,26 @@ class SchellenbergUsbApi:
                 remote_id,
             )
 
-    async def send_command(self, command: str) -> None:
-        """Send a raw command to the USB stick.
+    async def send_command(self, command: str, retries: int = 0) -> None:
+        """Send a raw command to the USB stick with optional retry logic.
 
-        Appends the required CRLF and encodes to ASCII.
-        The last sent command is stored for potential retries on 'stick busy' errors.
+        Appends the required CRLF and encodes to ASCII. If the USB stick
+        responds with tE (transmit error/busy), the command is automatically
+        retried up to ``retries`` times with exponential backoff (100ms,
+        200ms, 400ms, ...). Retries only happen when we can confirm the
+        transport is still connected.
+
+        Args:
+            command: The raw command string (without CRLF).
+            retries: Number of additional retry attempts on tE.
+                     Default 0 = fire-and-forget (no retry).
+
         """
         if self._transport is None or self._transport.is_closing():
             _LOGGER.warning("Serial port not connected. Command dropped: %s", command)
             return
 
-        # Store command for potential retry on "stick busy" error
+        # Store for potential retry on "stick busy"
         self._pending_retry_command = command
 
         full_command = f"{command}\r\n".encode("ascii")
@@ -584,15 +593,45 @@ class SchellenbergUsbApi:
         _LOGGER.debug("Command sent to serial device: %s", full_command.strip())
 
     async def _retry_command_after_delay(self) -> None:
-        """Retry sending the pending command after a 100ms delay."""
-        try:
-            await asyncio.sleep(0.1)  # 100 milliseconds
-            if self._pending_retry_command:
+        """Retry sending the pending command after exponential backoff.
+
+        The USB stick returns tE when it is still busy processing the
+        previous command (e.g. between t1 and t0). We retry with
+        increasing delays: 100ms, 200ms, 400ms, 800ms (max 4 retries).
+        """
+        max_retries = 4
+        delay = 0.1  # 100ms initial
+        for attempt in range(max_retries):
+            try:
+                await asyncio.sleep(delay)
+                if self._transport is None or self._transport.is_closing():
+                    _LOGGER.debug("Transport closed during retry; giving up.")
+                    return
                 command = self._pending_retry_command
-                _LOGGER.debug("Retrying command after stick busy: %s", command)
-                await self.send_command(command)
-        except asyncio.CancelledError:
-            _LOGGER.debug("Retry task cancelled")
+                if command is None:
+                    return  # Nothing to retry
+                _LOGGER.debug(
+                    "Retry attempt %d/%d for command: %s",
+                    attempt + 1, max_retries, command,
+                )
+                full_command = f"{command}\r\n".encode("ascii")
+                self._transport.write(full_command)
+
+                # If we don't get another tE, we're done
+                # The next tE will trigger a new retry task
+                delay = min(delay * 2, 0.8)  # Exponential backoff, max 800ms
+            except asyncio.CancelledError:
+                _LOGGER.debug("Retry cancelled")
+                return
+            except Exception as err:
+                _LOGGER.warning("Retry attempt %d failed: %s", attempt + 1, err)
+                return
+        else:
+            _LOGGER.warning(
+                "Command %s failed after %d retries",
+                self._pending_retry_command,
+                max_retries,
+            )
         finally:
             self._retry_task = None
 

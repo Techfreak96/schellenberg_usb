@@ -22,6 +22,7 @@ from .const import (
     CONF_REMOTE_CONTROLS,
     CONF_SERIAL_PORT,
     DOMAIN,
+    SUBENTRY_TYPE_BELT_DRIVE,
     SUBENTRY_TYPE_BLIND,
     SUBENTRY_TYPE_WINDOW_SENSOR,
 )
@@ -53,6 +54,7 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return {
             SUBENTRY_TYPE_BLIND: SchellenbergPairingSubentryFlow,
             SUBENTRY_TYPE_WINDOW_SENSOR: SchellenbergWindowSensorSubentryFlow,
+            SUBENTRY_TYPE_BELT_DRIVE: SchellenbergPairingSubentryFlow,
         }
 
     def __init__(self) -> None:

@@ -22,6 +22,7 @@ PLATFORMS = ["cover", "event", "sensor", "switch"]
 SUBENTRY_TYPE_LED = "led"
 SUBENTRY_TYPE_HUB = "hub"
 SUBENTRY_TYPE_BLIND = "blind"
+SUBENTRY_TYPE_BELT_DRIVE = "belt_drive"  # Gurtwickler (Rollodrive)
 SUBENTRY_TYPE_WINDOW_SENSOR = "window_sensor"
 
 # Configuration keys
