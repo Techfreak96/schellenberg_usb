@@ -155,6 +155,7 @@ async def async_setup_entry(
                         device_name=device_name,
                         device_data=subentry.data,
                         config_entry_id=entry.entry_id,
+                        device_type=subentry.subentry_type,
                     )
                 ],
                 config_subentry_id=subentry.subentry_id,
@@ -174,14 +175,6 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
     _attr_has_entity_name = True
     _attr_should_poll = False
 
-    # This entity supports open, close, stop, and setting position.
-    _attr_supported_features = (
-        CoverEntityFeature.OPEN
-        | CoverEntityFeature.CLOSE
-        | CoverEntityFeature.STOP
-        | CoverEntityFeature.SET_POSITION
-    )
-
     def __init__(
         self,
         api: SchellenbergUsbApi,
@@ -190,6 +183,7 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
         device_name: str,
         device_data: Mapping[str, Any] | None = None,
         config_entry_id: str | None = None,
+        device_type: str = "blind",
     ) -> None:
         """Initialize the Schellenberg cover entity.
 
@@ -200,12 +194,31 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
             device_name: Friendly name for the device
             device_data: Device data dict containing calibration times
             config_entry_id: The config entry ID for linking to device
+            device_type: The subentry type (blind or belt_drive)
 
         """
         self._api = api
         self._device_id = device_id
         self._device_enum = device_enum
         self._config_entry_id = config_entry_id
+        self._device_type = device_type
+
+        # Set supported features per device type.
+        # Belt drives (Gurtwickler/Rollodrive) only support OPEN/CLOSE/STOP,
+        # while premium tubular motors also support SET_POSITION.
+        if device_type == "belt_drive":
+            self._attr_supported_features = (
+                CoverEntityFeature.OPEN
+                | CoverEntityFeature.CLOSE
+                | CoverEntityFeature.STOP
+            )
+        else:
+            self._attr_supported_features = (
+                CoverEntityFeature.OPEN
+                | CoverEntityFeature.CLOSE
+                | CoverEntityFeature.STOP
+                | CoverEntityFeature.SET_POSITION
+            )
 
         # Entity attributes
         self._attr_unique_id = f"schellenberg_{device_id}"
