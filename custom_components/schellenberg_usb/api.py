@@ -183,7 +183,7 @@ class SchellenbergUsbApi:
 
         try:
             transport, protocol = await serial_asyncio.create_serial_connection(
-                self.hass.loop,
+                asyncio.get_running_loop(),
                 lambda: SchellenbergProtocol(self._handle_message, self),
                 self.port,
                 baudrate=112500,
