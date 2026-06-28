@@ -225,6 +225,15 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
         """Await a calibration step and cast to SubentryFlowResult for mypy."""
         return cast(SubentryFlowResult, await step_coro)
 
+    async def async_step_belt_drive(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Entry point for the Belt Drive '+' button.
+
+        Belt drives use the same pairing/calibration flow as regular blinds.
+        """
+        return await self.async_step_blind(user_input)
+
     async def async_step_blind(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
@@ -474,6 +483,12 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
 
     VERSION = 1
     _bind_blind_id: str | None = None
+
+    async def async_step_window_sensor(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Entry point for the Window Sensor '+' button."""
+        return await self.async_step_user(user_input)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
