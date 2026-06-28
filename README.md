@@ -137,7 +137,7 @@ Settings > Devices & Services > "+" > "Schellenberg USB"
 ### 2. Pair a Blind
 
 ```
-Integration Page > "+" > "Blind / Roller Shutter"
+Integration Page > "+" (Blind) > "Pair"
 ```
 
 1. Put your blind into pairing mode (see [Device Pairing](#device-pairing))
@@ -160,6 +160,14 @@ After pairing, the calibration wizard starts automatically:
 ---
 
 ## 🔗 Device Pairing
+
+New blinds are added via the **"+" (Blind)** button on the integration device page.
+When clicked, the pairing wizard guides you through the process:
+
+1. Click **Pair** – the USB stick enters pairing mode
+2. Activate pairing mode on your blind motor (see below)
+3. Wait for detection (up to 120 seconds)
+4. Name the device and run calibration
 
 ### ROLLODRIVE 65/75 PREMIUM (Electric Belt Winders)
 
@@ -190,7 +198,7 @@ Art. 21106, 21110, 21210, 21220, 21240
 
 ## ⚙️ Configuration
 
-### Options Flow
+### Option Flow
 
 ```
 Integration Page > "Configure" > Menu
@@ -198,11 +206,20 @@ Integration Page > "Configure" > Menu
 
 | Option | Description |
 |--------|-------------|
-| **Configure USB Port** | Change the serial port path |
-| **Learn a New Remote** | Register a physical remote control |
-| **Manage Remotes** | View and delete registered remotes |
-| **Manage Virtual Groups** | Create/remove group channel IDs |
-| **Configure Safety Lock** | Assign binary sensors (window/door) to blinds |
+| **USB-Anschluss konfigurieren** | Change the serial port path |
+| **Neue Fernbedienung anlernen** | Register a physical remote control |
+| **Fernbedienungen verwalten** | View and delete registered remotes |
+| **Virtuelle Gruppen verwalten** | Create/remove group channel IDs |
+| **Sicherheitssperre konfigurieren** | Assign binary sensors (window/door) to blinds via entity selector |
+
+### Window Sensor Configuration
+
+Window handle sensors are **not** added via a "+" button. Instead:
+
+1. Go to **Configure > Sicherheitssperre konfigurieren**
+2. Each paired blind shows an entity selector field
+3. Select the `binary_sensor` entity for the corresponding window
+4. When the window is open, the blind will be locked against closing
 
 ### Per-Blind Options
 
@@ -218,10 +235,9 @@ Devices > [Blind Name] > Gear Icon > Calibrate
 
 | Service | Description |
 |---------|-------------|
-| `pair` | Activate pairing mode on the USB stick |
-| `pair_device` | Pair a device directly by its 6-char hex ID |
 | `send_group_command` | Send a command to multiple blinds sequentially (via software queue) |
 | `send_native_group_command` | Send a hardware broadcast command to all devices on a channel |
+| `pair_device` | Pair a device directly by its 6-char hex ID |
 | `set_blind_lock` | Lock/unlock a blind to prevent DOWN commands |
 
 ### send_group_command (Sequential)
@@ -309,14 +325,17 @@ data:
 
 ## 🪟 Window Handle Sensor
 
-The USB stick receives signals from Schellenberg **window handle sensors**. When paired, they appear as HA sensor entities.
+The USB stick receives signals from Schellenberg **window handle sensors**. Once detected, they appear as HA sensor entities.
 
 ### Adding a Window Sensor
 
-1. **Integration > "+" > "Window Sensor"**
-2. **Select which blind** this sensor belongs to
-3. **Move the window handle** – the stick detects the signal
-4. **Name the sensor** (optional) – done!
+1. **Integration > Configure > Sicherheitssperre konfigurieren**
+2. **Select which blind** this sensor belongs to via the entity selector
+3. Enter the binary sensor entity ID for your window handle sensor
+4. The safety lock activates automatically (see [Safety Lock](#sicherheitssperre-konfigurieren))
+
+> [!NOTE]
+> Window sensors are added through the **Options Flow** (gear icon), not via a "+" button. This keeps the device card focused on blind management.
 
 ### Auto-Safety Lock
 
