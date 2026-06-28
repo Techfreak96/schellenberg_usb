@@ -98,7 +98,10 @@
     "belt_drive": {
       "entry_type": "Belt Drive (Rollodrive)",
       "name": "Add belt drive",
-      "description": "Add a Schellenberg belt drive (Gurtwickler/Rollodrive) that controls a belt winder."
+      "description": "Add a Schellenberg belt drive (Gurtwickler/Rollodrive) that controls a belt winder.",
+      "initiate_flow": {
+        "user": "Pair device"
+      }
     },
     "window_sensor": {
       "entry_type": "Window Sensor",

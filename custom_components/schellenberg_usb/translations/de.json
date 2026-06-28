@@ -88,10 +88,18 @@
         "reconfigure_successful": "Kalibrierung erfolgreich abgeschlossen"
       }    },
     "belt_drive": {
-      "entry_type": "Gurtwickler (Rollodrive)"
+      "entry_type": "Gurtwickler (Rollodrive)",
+      "name": "Gurtwickler hinzufügen",
+      "initiate_flow": {
+        "user": "Gerät koppeln"
+      }
     },
     "window_sensor": {
       "entry_type": "Fenstersensor",
+      "name": "Fenstersensor hinzufügen",
+      "initiate_flow": {
+        "user": "Fenstersensor anlernen"
+      },
       "step": {
         "user": {
           "title": "Mit Rollladen verbinden",

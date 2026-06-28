@@ -89,10 +89,18 @@
       }
     },
     "belt_drive": {
-      "entry_type": "Gurtwickler (Rollodrive)"
+      "entry_type": "Gurtwickler (Rollodrive)",
+      "name": "Ajouter Gurtwickler",
+      "initiate_flow": {
+        "user": "Appairer l'appareil"
+      }
     },
     "window_sensor": {
       "entry_type": "Capteur de fenêtre",
+      "name": "Ajouter capteur de fenêtre",
+      "initiate_flow": {
+        "user": "Apprendre capteur de fenêtre"
+      },
       "step": {
         "user": {
           "title": "Lier au volet",

@@ -89,10 +89,18 @@
       }
     },
     "belt_drive": {
-      "entry_type": "Gurtwickler (Rollodrive)"
+      "entry_type": "Gurtwickler (Rollodrive)",
+      "name": "Añadir Gurtwickler",
+      "initiate_flow": {
+        "user": "Emparejar dispositivo"
+      }
     },
     "window_sensor": {
       "entry_type": "Sensor de ventana",
+      "name": "Añadir sensor de ventana",
+      "initiate_flow": {
+        "user": "Aprender sensor de ventana"
+      },
       "step": {
         "user": {
           "title": "Vincular a persiana",

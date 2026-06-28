@@ -89,10 +89,18 @@
       }
     },
     "belt_drive": {
-      "entry_type": "Belt Drive (Rollodrive)"
+      "entry_type": "Belt Drive (Rollodrive)",
+      "name": "Add belt drive",
+      "initiate_flow": {
+        "user": "Pair device"
+      }
     },
     "window_sensor": {
       "entry_type": "Window Sensor",
+      "name": "Add window sensor",
+      "initiate_flow": {
+        "user": "Learn window sensor"
+      },
       "step": {
         "user": {
           "title": "Bind to blind",
