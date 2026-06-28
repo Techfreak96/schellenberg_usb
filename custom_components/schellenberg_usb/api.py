@@ -237,13 +237,17 @@ class SchellenbergUsbApi:
                 _LOGGER.warning("Failed to retrieve hub device ID")
         except (serial_asyncio.serial.SerialException, OSError) as err:
             _LOGGER.error(
-                "Failed to connect to %s: %s", self.port, err,
+                "Failed to connect to %s: %s. Will retry in 5s", self.port, err,
             )
             if transport:
                 transport.close()
             self._transport = None
             self._protocol = None
             self._is_connected = False
+            # Schedule automatic retry after 5s (GimpArm pattern)
+            self.hass.loop.call_later(
+                5, lambda: self.hass.create_task(self.connect())
+            )
         except Exception:
             _LOGGER.exception("Unexpected error connecting to %s", self.port)
             if transport:
@@ -251,7 +255,10 @@ class SchellenbergUsbApi:
             self._transport = None
             self._protocol = None
             self._is_connected = False
-            raise  # Re-raise so HA gets ConfigEntryNotReady
+            # Schedule automatic retry after 5s for unexpected errors too
+            self.hass.loop.call_later(
+                5, lambda: self.hass.create_task(self.connect())
+            )
         finally:
             self._is_connecting = False  # Always reset in ALL paths
 

@@ -2,7 +2,6 @@
 
 Credits / Sources:
 - https://github.com/GimpArm/schellenberg_usb (Original integration by GimpArm)
-- https://github.com/Techfreak96/schellenberg_usb (Refactored fork by Techfreak96)
 """
 
 from __future__ import annotations
@@ -11,7 +10,7 @@ import logging
 from types import MappingProxyType
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigEntryNotReady, ConfigSubentry
+from homeassistant.config_entries import ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
@@ -203,21 +202,14 @@ async def async_setup_entry(
 
     await _async_register_services(hass)
 
-    # Start the connection synchronously so we can raise ConfigEntryNotReady
-    # if the serial port is unavailable. HA will then retry the setup later.
-    try:
-        await api.connect()
-        if not api.is_connected:
-            raise ConfigEntryNotReady(
-                f"Could not connect to Schellenberg USB stick on {port}"
-            )
-    except ConfigEntryNotReady:
-        raise
-    except Exception as err:
-        _LOGGER.exception("Failed to connect to serial port %s", port)
-        raise ConfigEntryNotReady(
-            f"Failed to connect to serial port {port}: {err}"
-        ) from err
+    # Start the connection asynchronously (fire-and-forget) — matching the
+    # original GimpArm pattern that proved rock-solid in production.
+    #
+    # Entities transition to available/unavailable via their `available`
+    # property (checking api.is_connected). When the connection succeeds,
+    # _update_status() dispatches SIGNAL_STICK_STATUS_UPDATED which triggers
+    # async_write_ha_state() on all entities.
+    hass.async_create_task(api.connect())
 
     # Ensure we have a dedicated hub subentry so hub-level devices/entities
     # (like the LED) do not appear under "Devices that don't belong to a sub-entry".
