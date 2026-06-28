@@ -1,119 +1,354 @@
-# schellenberg_usb Home Assistant Component
+# Schellenberg USB Home Assistant Integration
 
-[![GitHub Release](https://img.shields.io/github/release/GimpArm/schellenberg_usb.svg)](https://github.com/GimpArm/schellenberg_usb/releases)
-[![License](https://img.shields.io/github/license/GimpArm/schellenberg_usb.svg)](https://github.com/GimpArm/schellenberg_usb/blob/main/LICENSE)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/GimpArm/schellenberg_usb/build-test.yaml)
+[![GitHub Release](https://img.shields.io/github/release/Techfreak96/schellenberg_usb.svg)](https://github.com/Techfreak96/schellenberg_usb/releases)
+[![License](https://img.shields.io/github/license/Techfreak96/schellenberg_usb.svg)](https://github.com/Techfreak96/schellenberg_usb/blob/main/LICENSE)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Techfreak96/schellenberg_usb/build-test.yaml)](https://github.com/Techfreak96/schellenberg_usb/actions)
+[![HA Integration](https://img.shields.io/badge/Home%20Assistant-Custom%20Integration-blue)](https://www.home-assistant.io/)
 
-Home Assistant component that interfaces with the [Schellenberg Usb Funk-Stick](https://www.schellenberg.de/smart-home-produkte/smart-home-steuerzentralen/funk-stick/21009/).
+Home Assistant integration for the [Schellenberg USB Funk-Stick (21009)](https://www.schellenberg.de/smart-home-produkte/smart-home-steuerzentralen/funk-stick/21009/) – a drop-in replacement for the discontinued Smart Friends / QIVICON system.
 
-> [!WARNING] 
-> This integration is not affiliated with Schellenberg, the developers take no responsibility for anything that happens to
-> your devices because of this library.
-
-![Schellenberg](https://raw.githubusercontent.com/GimpArm/schellenberg_usb/main/images/schellenberg-logo.png)
-
-## Features
-
-* Supports blind movement Up, Down, and Stop
-* After calibration, position tracking is possible.
-* **Remote Learning Mode**: Register physical Schellenberg remotes as persistent HA event entities for automation triggers.
-* **Native Group Control**: Send hardware broadcast commands (like Schellenberg 5-channel remotes) for simultaneous multi-blind operation.
-* **Safety Lock System**: Lock individual blinds to prevent them from closing (e.g., when a window is open). UP and STOP always allowed for safety.
-* **Window Handle Sensor**: Detect Schellenberg window handle positions (closed/tilted/open) and auto-lock the associated blind.
-* **RSSI Signal Strength**: Per-blind signal strength sensor for troubleshooting range issues.
-* **Auto-Discovery**: Newly detected devices trigger a persistent notification with pairing instructions.
-
-## Installation
-
-### Step 1: Download files
-
-#### Option 1: Via HACS
-
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=TechFreak96&repository=schellenberg_usb&category=integration)
-
-Make sure you have HACS installed. If you don't, run `wget -O - https://get.hacs.xyz | bash -` in HA.  
-Choose Integrations under HACS. Click the '+' button on the bottom of the page, search for "schellenberg usb", choose it, and click install in HACS.
-
-#### Option 2: Manual
-Clone this repository or download the source code as a zip file and add/merge the `custom_components/` folder with its contents in your configuration directory.
-
-
-### Step 2: Restart HA
-In order for the newly added integration to be loaded, HA needs to be restarted.
-
-### Step 3: Add integration to HA (<--- this is a step that a lot of people forget)
-In HA, go to Configuration > Integrations.
-In the bottom right corner, click on the big button with a '+'.
-
-If the component is properly installed, you should be able to find 'Schellenberg USB' in the list. You might need to clear you browser cache for the integration to show up.
-
-Select it, and the schellenberg usb integration is ready for use.
-
-### Step 4: Pair your devices
-
-1. In Home Assistant, go to **Settings > Devices & Services**
-2. Find the **Schellenberg USB** integration and click on it
-3. Click the **+** button or select **Pair device** from the menu
-4. Put your blind motor into pairing mode (see [Device Pairing Instructions](#device-pairing-instructions))
-5. Once pairing is successful, provide a friendly name for your blind
-
-### Step 5: Calibrate your blinds
-
-Calibration is essential for accurate position tracking. The integration measures how long it takes your blind to fully open and close, allowing it to calculate the current position during operation.
+> [!WARNING]
+> This integration is **not affiliated with Schellenberg GmbH**. The developers take no responsibility for anything that happens to your devices. Use at your own risk.
 
 > [!IMPORTANT]
-> This calibration is **not** the same as setting the end positions (fully open/closed limits) on your blind motor. End positions must be configured directly on the device itself using the motor's built-in adjustment features or a Schellenberg remote control before using this integration.
+> **Schellenberg has discontinued their Smart Friends platform.** This community integration is now the primary way to use Schellenberg devices with modern smart home systems.
 
-#### Starting Calibration
-
-You can calibrate a blind:
-- **During initial pairing**: After naming your device, you'll be prompted to calibrate
-- **After pairing from the device page**: Go to the device and click the **Calibrate** gear icon (⚙️) as shown below
-
-![Calibrate button location](images/calibrate-button.png)
-
-*Click the gear icon labeled "Calibrate" in the top right corner of your blind device to start calibration.*
-
-#### Calibration Steps
-
-1. **Step 1 - Close the blind**: Ensure your blind is fully closed (all the way down). Press **Next** when ready.
-
-2. **Step 2 - Measure open time**: 
-   - Press **Start** in the dialog
-   - Then press the **open button** on your physical remote/control
-   - The integration will automatically detect when the blind starts moving and begin timing
-   - Wait for the blind to fully open - the timer stops automatically when movement stops
-
-3. **Step 3 - Measure close time**:
-   - Press **Start** in the dialog  
-   - Then press the **close button** on your physical remote/control
-   - The integration will automatically detect when the blind starts moving and begin timing
-   - Wait for the blind to fully close - the timer stops automatically when movement stops
-
-4. **Complete**: The integration will display the measured open and close times and save them for position tracking
-
-> [!TIP]
-> There's no need to rush when pressing the buttons - the timer doesn't start until the integration receives a "moving" signal from the blind motor.
-
-> [!NOTE]
-> If calibration times seem incorrect, you can recalibrate at any time from the device options.
+![Schellenberg](https://raw.githubusercontent.com/Techfreak96/schellenberg_usb/main/images/schellenberg-logo.png)
 
 ---
 
-## Advanced Features
+## 📋 Table of Contents
 
-### Remote Learning Mode
+- [Features](#features)
+- [Supported Devices](#supported-devices)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Device Pairing](#device-pairing)
+- [Configuration](#configuration)
+- [Services](#services)
+- [Safety Lock System](#safety-lock-system)
+- [Window Handle Sensor](#window-handle-sensor)
+- [Remote Controls](#remote-controls)
+- [Group Commands](#group-commands)
+- [Technical Details](#technical-details)
+- [FAQ / Troubleshooting](#faq--troubleshooting)
+- [Credits & Sources](#credits--sources)
 
-The integration can learn physical Schellenberg remote controls and expose them as **persistent Event Entities** in Home Assistant. Each registered remote fires HA events when a button is pressed, enabling automations without any additional hardware.
+---
 
-**How it works:**
-1. Go to **Settings > Devices & Services > Schellenberg USB > Options**
-2. Enable **"Learn Remote"** and press a button on your physical Schellenberg remote
-3. The remote ID and channel are captured and stored persistently in `entry.options`
-4. A new Event Entity appears (e.g. `event.schellenberg_remote_a1b2c3`)
-5. Every subsequent button press fires a HA event and updates the entity
+## ✨ Features
 
-**Example Automation Trigger:**
+### Core
+- ✅ **Blind Control** – Up, Down, Stop with smooth position tracking (0-100%)
+- ✅ **Virtual Position Tracking** – Time-based position estimation for unidirectional Gen 1 devices
+- ✅ **Calibration** – Auto-measure travel times for accurate position calculation
+- ✅ **Belt Drive Support** – Native support for Rollodrive Gurtwickler with configurable travel characteristics
+
+### Smart Home
+- ✅ **Safety Lock System** – Lock blinds against closing via binary sensor (window/door contact)
+- ✅ **Window Handle Sensor** – Detect Schellenberg window positions (closed/tilted/open) with auto-safety-lock
+- ✅ **Remote Learning** – Register physical Schellenberg remotes as HA event entities
+- ✅ **Group Commands** – Hardware broadcast (native) + sequential (software queue) group control
+- ✅ **Auto-Discovery** – New devices trigger HA notifications with pairing instructions
+
+### Monitoring
+- ✅ **RSSI Signal Strength** – Per-blind radio signal quality sensor
+- ✅ **Connection Status** – USB stick connectivity monitoring
+- ✅ **Firmware Version** – Stick firmware version display
+- ✅ **Operating Mode** – Stick mode (bootloader/initial/listening)
+
+### Technical
+- ✅ **100% Async** – Non-blocking I/O via `pyserial-asyncio`
+- ✅ **Exponential Backoff** – Retry mechanism for `tE` (stick busy) errors: 100ms→200ms→400ms→800ms
+- ✅ **ConfigEntryNotReady** – Proper HA retry on connection failure
+- ✅ **Auto-Reconnect** – Automatic reconnection on USB disconnect
+- ✅ **Multi-Language** – German, English, Spanish, French
+
+---
+
+## 📋 Supported Devices
+
+### Schellenberg USB Stick
+
+| Article | Name | Type |
+|---------|------|------|
+| 21009 | Funk-Stick (Magenta SmartHome / QIVICON) | USB dongle, 868.4 MHz |
+
+### Blind Motors & Belt Drives
+
+| Product ID | Name | Type | Position Tracking |
+|-----------|------|------|-----------------|
+| 22567, 22767 | ROLLODRIVE 65 PREMIUM | Electric belt winder (Gurtwickler) | ✅ Virtual (time-based) |
+| 22576, 22776 | ROLLODRIVE 75 PREMIUM | Electric belt winder (Gurtwickler) | ✅ Virtual (time-based) |
+| 21106, 21110 | Funk-Rollladenmotor PREMIUM | Radio tube motor | ✅ Virtual (time-based) |
+| 21210, 21220, 21240 | Funk-Rollladenmotor PREMIUM V2 | Bidirectional radio tube motor | ✅ Virtual + Events |
+| 20264 | Funk-Markisenantrieb Premium | Awning motor | ⚠️ Basic (no intermediate positions) |
+
+### Sensors & Remotes
+
+| Product ID | Name | Type |
+|-----------|------|------|
+| 20016, 20023 | 1-/5-Channel Remote | Wireless remote control |
+| Various | Window handle sensor | Tilt sensor (0°/90°/180°) |
+
+> [!NOTE]
+> **Gen 1 devices (20xxx)** are **unidirectional** – they only receive commands and send no status feedback. The integration estimates position (0-100%) virtually based on calibrated travel times.
+
+---
+
+## 📦 Installation
+
+### Option A: Via HACS (recommended)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=Techfreak96&repository=schellenberg_usb&category=integration)
+
+1. Ensure HACS is installed ([guide](https://hacs.xyz/docs/installation/download))
+2. Go to **HACS > Integrations > "..." > Custom repositories**
+3. Add `https://github.com/Techfreak96/schellenberg_usb` (category: Integration)
+4. Click **Install**
+5. **Restart Home Assistant**
+
+### Option B: Manual
+
+```bash
+# Clone to your custom_components directory
+git clone https://github.com/Techfreak96/schellenberg_usb.git
+cp -r schellenberg_usb/custom_components/schellenberg_usb /path/to/config/custom_components/
+
+# Restart Home Assistant
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Add the Integration
+
+```
+Settings > Devices & Services > "+" > "Schellenberg USB"
+```
+
+- Select your USB stick serial port (e.g., `/dev/ttyACM0`, `COM3`)
+- The stick will be verified automatically
+
+### 2. Pair a Blind
+
+```
+Integration Page > "+" > "Blind / Roller Shutter"
+```
+
+1. Put your blind into pairing mode (see [Device Pairing](#device-pairing))
+2. Click **Pair** in the HA dialog
+3. Wait for the blind to be detected (up to 120 seconds)
+4. Provide a friendly name
+
+### 3. Calibrate
+
+After pairing, the calibration wizard starts automatically:
+
+1. **Close the blind** – press Next
+2. **Open the blind** – manually raise it, the timer starts automatically
+3. **Close the blind** – manually lower it, the timer starts automatically
+4. Times are saved – position tracking is now active
+
+> [!TIP]
+> You can recalibrate anytime via **Options > Calibrate** on the blind device page.
+
+---
+
+## 🔗 Device Pairing
+
+### ROLLODRIVE 65/75 PREMIUM (Electric Belt Winders)
+
+```
+Art. 22567, 22576, 22578, 22726, 22727, 22728, 22767
+```
+
+1. Press and hold **Sun (☀)** + **Up (▲)** buttons simultaneously for ~5s
+2. LED flashes – device is in pairing mode
+3. Click **Pair** in Home Assistant within 2 minutes
+
+### Funk-Rollladenmotoren PREMIUM (Radio Tube Motors)
+
+```
+Art. 21106, 21110, 21210, 21220, 21240
+```
+
+- Pairing is typically done via the connected Schellenberg remote
+- Follow the instructions in your device's manual
+
+### General Tips
+
+- Keep the USB stick within range (~20m indoors, ~100m outdoors)
+- Avoid metal obstructions between the stick and the motor
+- Use the **RSSI Signal sensor** to find the optimal stick position
+
+---
+
+## ⚙️ Configuration
+
+### Options Flow
+
+```
+Integration Page > "Configure" > Menu
+```
+
+| Option | Description |
+|--------|-------------|
+| **Configure USB Port** | Change the serial port path |
+| **Learn a New Remote** | Register a physical remote control |
+| **Manage Remotes** | View and delete registered remotes |
+| **Manage Virtual Groups** | Create/remove group channel IDs |
+| **Configure Safety Lock** | Assign binary sensors (window/door) to blinds |
+
+### Per-Blind Options
+
+Each blind can be recalibrated from its device page:
+
+```
+Devices > [Blind Name] > Gear Icon > Calibrate
+```
+
+---
+
+## 🔌 Services
+
+| Service | Description |
+|---------|-------------|
+| `pair` | Activate pairing mode on the USB stick |
+| `pair_device` | Pair a device directly by its 6-char hex ID |
+| `send_group_command` | Send a command to multiple blinds sequentially (via software queue) |
+| `send_native_group_command` | Send a hardware broadcast command to all devices on a channel |
+| `set_blind_lock` | Lock/unlock a blind to prevent DOWN commands |
+
+### send_group_command (Sequential)
+
+```yaml
+service: schellenberg_usb.send_group_command
+data:
+  entity_id:
+    - cover.wohnzimmer
+    - cover.schlafzimmer
+  action: open
+```
+
+### send_native_group_command (Hardware Broadcast)
+
+```yaml
+service: schellenberg_usb.send_native_group_command
+data:
+  action: open
+  group_id: "05"  # Channel 5 = "All" (default)
+```
+
+> [!NOTE]
+> **send_native_group_command** sends a single radio broadcast to all devices on the specified channel – they react simultaneously. **send_group_command** sends commands sequentially with anti-collision delays.
+
+### set_blind_lock (Safety Lock)
+
+```yaml
+# Lock by entity_id (easiest)
+service: schellenberg_usb.set_blind_lock
+data:
+  entity_id: cover.wohnzimmer_rollo
+  locked: true
+
+# Lock by device_id
+service: schellenberg_usb.set_blind_lock
+data:
+  device_id: "A1B2C3"
+  locked: false
+```
+
+---
+
+## 🔒 Safety Lock System
+
+The safety lock prevents a blind from closing (DOWN command) while always allowing UP and STOP for safety.
+
+### Automatic via Options Flow
+
+1. Go to **Integration > Options > Configure Safety Lock**
+2. For each blind, select a `binary_sensor` (window/door contact)
+3. When the sensor turns **on** (open), the blind is automatically locked
+4. When the sensor turns **off** (closed), the blind is unlocked
+
+### Manual via Service Call
+
+```yaml
+service: schellenberg_usb.set_blind_lock
+data:
+  entity_id: cover.wohnzimmer_rollo
+  locked: true
+```
+
+### Automation Example
+
+```yaml
+- alias: "Lock blinds when window opens"
+  trigger:
+    - platform: state
+      entity_id: binary_sensor.wohnzimmer_fenster
+      to: "on"
+  action:
+    - service: schellenberg_usb.set_blind_lock
+      data:
+        entity_id: cover.wohnzimmer_rollo
+        locked: true
+```
+
+### Safety Guarantee
+
+> [!IMPORTANT]
+> **CMD_UP (open) and CMD_STOP are NEVER blocked** – the blind can always be opened or stopped. Only CMD_DOWN (close) is blocked when the lock is active. This ensures no one gets trapped.
+
+---
+
+## 🪟 Window Handle Sensor
+
+The USB stick receives signals from Schellenberg **window handle sensors**. When paired, they appear as HA sensor entities.
+
+### Adding a Window Sensor
+
+1. **Integration > "+" > "Window Sensor"**
+2. **Select which blind** this sensor belongs to
+3. **Move the window handle** – the stick detects the signal
+4. **Name the sensor** (optional) – done!
+
+### Auto-Safety Lock
+
+When a window sensor is bound to a blind, the safety lock activates **automatically**:
+
+| Sensor State | Action |
+|-------------|--------|
+| `closed` (0°) | 🔓 Blind unlocked – normal operation |
+| `tilted` (90°) | 🔒 Blind locked – DOWN blocked |
+| `open` (180°) | 🔒 Blind locked – DOWN blocked |
+
+### Entity States
+
+| HA State | Icon | Description |
+|----------|------|-------------|
+| `closed` | 🪟 `window-closed-variant` | Handle at 0° (closed) |
+| `tilted` | 🪟 `window-open-variant` | Handle at 90° (tilted) |
+| `open` | 🪟 `window-open` | Handle at 180° (fully open) |
+
+---
+
+## 📡 Remote Controls
+
+Physical Schellenberg remotes can be learned as **persistent HA event entities**.
+
+### Learning a Remote
+
+```
+Integration > Options > "Learn a New Remote"
+→ Press any button on the physical remote within 30 seconds
+→ Remote is registered as an EventEntity
+```
+
+### Automation Trigger
+
 ```yaml
 trigger:
   - platform: event
@@ -123,185 +358,241 @@ trigger:
       button: "up"
 ```
 
-**Event Data Schema:**
+### Event Data
+
 | Field | Type | Description |
 |-------|------|-------------|
-| `remote_id` | string | 6-char hex ID of the remote (e.g. `5D3E7C`) |
-| `channel` | string | Remote channel (e.g. `1`, `2`, ..., `5`) |
-| `button` | string | Button pressed: `up`, `down`, or `stop` |
-| `command` | string | Raw hex command byte from the protocol |
+| `remote_id` | string | 6-char hex ID (e.g., `A1B2C3`) |
+| `channel` | string | Channel number (`1`–`5`) |
+| `button` | string | `up`, `down`, or `stop` |
+| `command` | string | Raw hex command byte |
 
-**Configuration** (via Options Flow):
-1. Set **"Learn Remote"** checkbox
-2. Press any button on the physical remote within 30 seconds
-3. Optionally provide a friendly **"Remote Name"**
-4. The remote is now registered and will survive HA restarts
+---
 
-> [!TIP]
-> If a remote doesn't appear after learning, ensure you're within range (~20m indoors) and try again. The stick listens for all `ss`-prefixed messages while in listening mode.
+## 👥 Group Commands
 
-### Native Group Command Service
+### Hardware Broadcast (Native)
 
-Send hardware-level broadcast commands through the USB stick, mimicking the behavior of Schellenberg 5-channel remotes where all blinds on a channel react **simultaneously** (no sequential delays).
-
-**Service:** `schellenberg_usb.send_native_group_command`
+Mimics the behavior of Schellenberg 5-channel remotes – sends a single radio broadcast to all devices on a channel. **All devices react simultaneously.**
 
 ```yaml
-# Example: Send "open" to all blinds on channel 5 (the "All" channel)
 service: schellenberg_usb.send_native_group_command
 data:
   action: open
-  group_id: "05"
+  group_id: "05"  # Channel 5 = all devices
 ```
 
-**Parameters:**
-| Field | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `action` | ✅ Yes | — | `up`, `down`, `stop`, `open`, or `close` |
-| `group_id` | ❌ No | `05` | 2-char hex group/channel byte (e.g. `01`-`05`) |
+### Software Queue (Sequential)
 
-**Technical Note:** Unlike the sequence-based group command (`send_group_command`) which queues individual commands to multiple blinds, the native group command sends a single hardware broadcast. All blind motors that are paired to the given channel will react at the exact same time.
-
-### Event Entity Platform
-
-Each registered remote creates an EventEntity that:
-
-- Fires typed events (`up`, `down`, `stop`) via `_trigger_event()` — usable natively in HA automation triggers
-- Fires bus events (`schellenberg_usb_remote_button_pressed`) for cross-integration compatibility
-- Provides Device Registry entry attached to the USB hub
-- Persists across HA restarts via `entry.options` storage
-
-**Entity Attributes:**
-| Attribute | Description |
-|-----------|-------------|
-| `event_types` | Supported event types: `up`, `down`, `stop` |
-| `device_info` | Manufacturer: Schellenberg, linked to USB hub |
-| `unique_id` | Format: `{entry_id}_remote_{remote_id}` |
-
----
-
-## Safety Lock System (Aussperrschutz) 🔒
-
-The safety lock prevents a blind from closing (DOWN command) while allowing UP and STOP for safety. This can be linked to window/door sensors.
-
-### Service: `schellenberg_usb.set_blind_lock`
+Sends the same command to multiple blinds one at a time with anti-collision delays (150ms between commands, 200ms between devices). Prevents `tE` (stick busy) errors.
 
 ```yaml
-# Example: Lock blind when a window opens
-service: schellenberg_usb.set_blind_lock
+service: schellenberg_usb.send_group_command
 data:
-  entity_id: cover.wohnzimmer_rollo
-  locked: true
+  entity_id:
+    - cover.wohnzimmer
+    - cover.schlafzimmer
+    - cover.kueche
+  action: close
 ```
 
-**Parameters:**
-| Field | Required | Description |
-|-------|----------|-------------|
-| `entity_id` | No | Cover entity to lock (easier than finding device_id) |
-| `device_id` | No | 6-char hex device ID |
-| `locked` | No | `true`=block DOWN, `false`=allow DOWN (default: true) |
+---
 
-> **Safety:** CMD_UP and CMD_STOP are NEVER blocked – the blind can always be opened or stopped.
+## 🔧 Technical Details
 
-### Automation Example: Window Sensor + Safety Lock
+### Protocol
+
+Based on the reverse-engineered protocol by [Hypfer](https://github.com/Hypfer/schellenberg-qivicon-usb) and [LoPablo](https://github.com/LoPablo/schellenberg-qivicon-usb).
+
+#### Message Format (Sending)
+
+```
+ss XX 9 AA 0000\r\n
+
+ss    = Schellenberg transmit prefix (fixed)
+XX    = Device enumerator (2 hex chars, 01-FF)
+9     = Message count (0-F, typically 9)
+AA    = Command byte (00=stop, 01=up, 02=down, 40=pair, 60=change direction)
+0000  = Padding (required)
+```
+
+#### Message Format (Receiving)
+
+```
+ss XX YYYYYY ZZZZ CC PP RR
+
+ss    = Prefix (2 chars)
+XX    = Device enumerator (2 hex chars)
+YYYYYY = Device ID (6 hex chars)
+ZZZZ  = Message counter (4 hex chars, ignored)
+CC    = Command (2 hex chars)
+PP    = Padding (2 hex chars)
+RR    = RSSI signal strength (2 hex chars)
+```
+
+#### USB Stick Responses
+
+| Response | Meaning |
+|----------|---------|
+| `t1` | Transmit ON – command accepted, radio active |
+| `t0` | Transmit OFF – command completed |
+| `tE` | Transmit Error – stick busy, **retry with backoff** |
+| `RFTU_V20...` | Device verification response |
+
+### Virtual Position Tracking
+
+Since **Gen 1 devices are unidirectional** (no status feedback), the integration estimates position using:
+
+```
+position = (elapsed_time / travel_time) * 100
+```
+
+Where:
+- `elapsed_time` = time since movement started (measured in real-time)
+- `travel_time` = calibrated full-stroke time (per blind, from calibration)
+- `position` = estimated position (0% = fully closed, 100% = fully open)
+
+#### Tracking Loop
+
+```
+Movement starts → position task created (200ms interval)
+  → Every 200ms: recalculate position from elapsed time
+  → Every 1 second: write new state to HA
+  → On STOP event OR target reached: finalize position, stop loop
+```
+
+#### Calibration
+
+During calibration, the integration measures:
+- **Open time**: Time from fully closed to fully open
+- **Close time**: Time from fully open to fully closed
+
+These times are stored per-blind and survive HA restarts.
+
+### Retry Mechanism
+
+The integration implements exponential backoff for `tE` (stick busy) errors:
+
+```
+tE received → Retry after 100ms
+  → tE received → Retry after 200ms
+    → tE received → Retry after 400ms
+      → tE received → Retry after 800ms
+        → Failed after 4 retries → Warning logged
+```
+
+### Connection Management
+
+```
+async_setup_entry → await api.connect()
+  → Success? → Continue setup
+  → Failure? → Raise ConfigEntryNotReady → HA retries later
+
+connection_lost (USB unplugged)
+  → _is_connected = False
+  → Wait 2 seconds
+  → await api.connect() (cancelable via _reconnect_task)
+
+disconnect (integration unload)
+  → Cancel _retry_task, _reconnect_task, _stop_pairing_task
+  → Close transport
+```
+
+### Architecture Diagram
+
+```
+┌─────────────────┐     ┌──────────────────┐     ┌──────────────────┐
+│  Home Assistant  │     │  schellenberg_usb │     │  USB Stick 21009 │
+│  (Entity Layer)  │────▶│  (Integration)    │────▶│  (Serial 112500) │
+│                  │     │                   │     │                  │
+│  CoverEntity ◀───│────▶│  api.py           │────▶│  ssXX9AA0000\r\n │
+│  SensorEntity ◀──│────▶│  protocol →       │◀────│  t1/t0/tE/RSSI   │
+│  EventEntity  ◀──│────▶│  _handle_message()│◀────│  ssXX... messages │
+│  SwitchEntity    │     │  dispatcher       │     │                  │
+└─────────────────┘     └──────────────────┘     └──────────────────┘
+```
+
+### Communication Timing
+
+| Operation | Typical Duration |
+|-----------|-----------------|
+| Single blind UP/DOWN | ~10-20s (depends on travel time) |
+| Position update interval | 200ms |
+| HA state write interval | 1s (every 5th update) |
+| Pairing timeout | 120s |
+| Reconnect delay | 2s (initial) |
+| Command retry backoff | 100ms → 200ms → 400ms → 800ms |
+| Connection verification | 5s timeout |
+
+---
+
+## ❓ FAQ / Troubleshooting
+
+### Blind doesn't move after pairing
+
+- The pairing may have captured the **remote ID** instead of the **motor ID**. The motor's actual device ID is usually in the logs (`enum=09, id=6A7CBF`).
+- Try **re-pairing** and ensure no remote button is pressed during the pairing window.
+- Check the debug logs for `Received message for device X but no corresponding entity found`.
+
+### Position tracking is inaccurate
+
+- **Recalibrate** the blind via **Options > Calibrate**
+- Ensure the blind is fully closed before starting calibration
+- Default travel time is 60s – calibration measures the actual time
+
+### USB stick not detected
+
+- Check `dmesg | grep tty` for device enumeration
+- Ensure the user has permissions: `sudo usermod -a -G dialout $USER`
+- Try a different USB port
+- The stick auto-negotiates baudrate – 112500 is the default
+
+### Connection keeps dropping
+
+- Check the USB cable quality
+- Use the **RSSI Signal sensor** to verify radio signal strength
+- Monitor debug logs for `tE` (busy) patterns
+
+### Error: "400 Bad Request" when clicking "+"
+
+- This was a bug in earlier versions – update to `v1.2.0+`
+- If persisting, check the Home Assistant logs for specific error details
+
+### Logging
+
+Enable debug logging in `configuration.yaml`:
 
 ```yaml
-- alias: "Lock blinds when window opens"
-  trigger:
-    - platform: state
-      entity_id: sensor.wohnzimmer_fenster
-      from: "closed"
-  action:
-    - service: schellenberg_usb.set_blind_lock
-      data:
-        entity_id: cover.wohnzimmer_rollo
-        locked: true
+logger:
+  default: info
+  logs:
+    custom_components.schellenberg_usb: debug
 ```
 
 ---
 
-## Window Handle Sensor 🪟
+## 🙏 Credits & Sources
 
-The USB stick can receive signals from Schellenberg window handle sensors. When paired, each sensor appears as a HA entity with states: `closed`, `tilted`, `open`.
+This integration builds on the work of many community members:
 
-### Adding a Window Sensor
-
-1. Go to **Settings > Devices & Services > Schellenberg USB**
-2. Click **"+ Add device"**
-3. Choose **"Window Sensor"**
-4. Select which blind this sensor belongs to
-5. Move the window handle so the stick can detect it (60 seconds timeout)
-6. Provide a name (optional)
-7. Done! The sensor appears in HA
-
-### Auto-Safety Lock
-
-When a window sensor is bound to a blind, the safety lock is **automatically** activated:
-
-| Window State | Safety Lock |
-|-------------|-------------|
-| `open` or `tilted` | 🔒 Blind locked (DOWN blocked) |
-| `closed` | 🔓 Blind unlocked (DOWN allowed) |
-
-No automation needed – this happens automatically in real-time.
-
-### Entity States
-
-| State | Icon | Description |
-|-------|------|-------------|
-| `closed` | 🪟 | Window handle at 0° (closed) |
-| `tilted` | 🪟 | Window handle at 90° (tilted) |
-| `open` | 🪟 | Window handle at 180° (fully open) |
+| Source | Contribution |
+|--------|-------------|
+| [GimpArm/schellenberg_usb](https://github.com/GimpArm/schellenberg_usb) | Original Home Assistant integration (base structure) |
+| [Hypfer/schellenberg-qivicon-usb](https://github.com/Hypfer/schellenberg-qivicon-usb) | Protocol reverse engineering (message format, commands) |
+| [LoPablo/schellenberg-qivicon-usb](https://github.com/LoPablo/schellenberg-qivicon-usb) | Extended packet analysis, device enumerator mapping |
+| [moTo31/schellenberg-mqtt](https://github.com/moTo31/schellenberg-mqtt) | MQTT daemon, pairing procedure, command structure |
+| [ohlmannmichael-ai](https://github.com/ohlmannmichael-ai) | Bug reports, calibration persistence testing |
+| [HA Community Thread](https://community.home-assistant.io/t/integration-schellenberg/102832) | Gurtwickler belt drive information, user feedback |
 
 ---
 
-## RSSI Signal Strength Sensor 📶
+## 📄 License
 
-Each paired blind automatically gets a signal strength sensor (`sensor.{name}_signal`). The value ranges from 0 (weak) to 255 (strong). The icon changes based on signal quality:
-
-| RSSI Range | Icon |
-|-----------|------|
-| > 200 | `mdi:wifi-strength-4` Excellent |
-| > 150 | `mdi:wifi-strength-3` Good |
-| > 100 | `mdi:wifi-strength-2` Fair |
-| ≤ 100 | `mdi:wifi-strength-1` Weak |
-| None | `mdi:wifi-off` No signal |
-
-Use this to find the optimal position for the USB stick.
+Apache License 2.0 – See [LICENSE](LICENSE) for details.
 
 ---
 
-## Auto-Discovery 🔍
-
-When the USB stick receives a signal from an unknown device (new blind, remote, or window sensor), a persistent notification appears in Home Assistant:
-
-> **New Schellenberg Device Detected**  
-> A new device was detected: **A1B2C3** (channel 1).  
-> Go to Settings > Devices & Services to add it permanently.
-
-This helps you discover devices that are already paired to a physical remote.
-
----
-
-## Test Suite 🧪
-
-The integration includes a pytest test suite in the `tests/` directory:
-
-```
-tests/
-├── __init__.py
-├── test_api.py      (16 tests - API methods, remote registration, commands)
-└── test_const.py    (Verify all constants are correctly defined)
-```
-
-Run tests with:
-```bash
-pytest tests/ -v
-```
-
----
-
-## Services Overview
+**Status**: 🟢 Active Development | **Latest**: `v1.2.0` | **Branches**: `main`, `beta`
 
 | Service | Description |
 |---------|-------------|
