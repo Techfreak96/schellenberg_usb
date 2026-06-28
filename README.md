@@ -1,5 +1,8 @@
 # Schellenberg USB Home Assistant Integration
 
+> [!CAUTION]
+> **⚠️ Under Development** — This integration is currently under active development. Functionality may be unstable or broken. Use with caution and expect breaking changes.
+
 [![GitHub Release](https://img.shields.io/github/release/Techfreak96/schellenberg_usb.svg)](https://github.com/Techfreak96/schellenberg_usb/releases)
 [![License](https://img.shields.io/github/license/Techfreak96/schellenberg_usb.svg)](https://github.com/Techfreak96/schellenberg_usb/blob/main/LICENSE)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Techfreak96/schellenberg_usb/build-test.yaml)](https://github.com/Techfreak96/schellenberg_usb/actions)

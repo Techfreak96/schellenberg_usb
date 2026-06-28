@@ -30,6 +30,7 @@ from .const import (
     CONF_REMOTE_CONTROLS,
     DOMAIN,
     SIGNAL_REMOTE_EVENT,
+    SIGNAL_STICK_STATUS_UPDATED,
     SchellenbergConfigEntry,
 )
 
@@ -140,11 +141,24 @@ class SchellenbergRemoteEvent(EventEntity):
                 self._async_handle_button,
             )
         )
+        # Subscribe to connection status updates so availability is refreshed
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                SIGNAL_STICK_STATUS_UPDATED,
+                self._async_handle_status_update,
+            )
+        )
         _LOGGER.debug(
             "Remote event entity %s listening for dispatcher signal %s",
             self.entity_id,
             f"{SIGNAL_REMOTE_EVENT}_{self._remote_id}",
         )
+
+    @callback
+    def _async_handle_status_update(self) -> None:
+        """Re-write state when connection status changes."""
+        self.async_write_ha_state()
 
     @callback
     def _async_handle_button(self, button: str, command: str) -> None:

@@ -133,6 +133,9 @@ class SchellenbergBaseSensor(SensorEntity):
     @callback
     def _handle_status_update(self) -> None:
         """Handle status update from API."""
+        _LOGGER.debug(
+            "Sensor status update: available=%s", self.available,
+        )
         self.async_write_ha_state()
 
 

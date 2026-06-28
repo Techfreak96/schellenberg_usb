@@ -160,8 +160,12 @@ async def async_setup_entry(
                 config_subentry_id=subentry.subentry_id,
             )
     except Exception:
-        _LOGGER.exception("Error setting up cover platform")
-        raise
+        _LOGGER.exception(
+            "Error setting up cover platform for entry %s",
+            entry.entry_id,
+        )
+        # Do NOT re-raise — let other platforms (sensor, event, switch) set up
+        # even if cover setup encounters an issue with one subentry.
 
 
 class SchellenbergCover(CoverEntity, RestoreEntity):
@@ -356,6 +360,12 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
     @callback
     def _handle_status_update(self) -> None:
         """Handle status update from API (connection state changed)."""
+        _LOGGER.debug(
+            "Status update for %s (%s): is_connected=%s",
+            self._attr_name,
+            self._device_id,
+            self._api.is_connected,
+        )
         self.async_write_ha_state()
 
     @callback

@@ -112,6 +112,8 @@ class SchellenbergUsbApi:
 
         # Reconnection management
         self._reconnect_task: asyncio.Task[None] | None = None
+        # Flag to distinguish intentional disconnect from unexpected connection loss
+        self._disconnecting = False
 
     @staticmethod
     def _command_to_button(command: str) -> str | None:
@@ -997,6 +999,11 @@ class SchellenbergUsbApi:
 
     def update_connection_status(self, connected: bool) -> None:
         """Update connection status (called from protocol)."""
+        _LOGGER.debug(
+            "Connection status changing: connected=%s (was %s)",
+            connected,
+            self._is_connected,
+        )
         self._is_connected = connected
         self._update_status()
 
@@ -1178,6 +1185,7 @@ class SchellenbergUsbApi:
 
     async def disconnect(self) -> None:
         """Disconnect from the serial port and cancel pending operations."""
+        self._disconnecting = True
         # Cancel any pending retry task
         if self._retry_task and not self._retry_task.done():
             self._retry_task.cancel()
@@ -1198,6 +1206,7 @@ class SchellenbergUsbApi:
             self._transport = None
         self._protocol = None
         self._is_connected = False
+        self._disconnecting = False
         _LOGGER.info("Disconnected from Schellenberg USB stick")
 
 
@@ -1246,10 +1255,15 @@ class SchellenbergProtocol(asyncio.Protocol):
 
         # Schedule a reconnect (unless intentionally disconnected)
         api = self.api
-        if api._transport is None and not api._is_connecting:
+        if not api._disconnecting and not api._is_connecting:
             # Use hass.create_task for safety; wrap to avoid stale references
             async def _delayed_reconnect() -> None:
-                await asyncio.sleep(2)
-                await api.connect()
+                try:
+                    await asyncio.sleep(2)
+                    await api.connect()
+                except Exception:
+                    _LOGGER.exception("Reconnect failed")
+                    # Notify entities that we're still disconnected
+                    api._update_status()
 
             api._reconnect_task = asyncio.create_task(_delayed_reconnect())
