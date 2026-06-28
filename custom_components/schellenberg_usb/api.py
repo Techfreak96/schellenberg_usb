@@ -129,6 +129,8 @@ class SchellenbergUsbApi:
 
         # tE (stick busy) counter for rate-limited warning logging
         self._tE_counter = 0
+        # Consecutive tE failures — triggers forced reconnect at threshold
+        self._consecutive_tE_failures = 0
 
     @staticmethod
     def _command_to_button(command: str) -> str | None:
@@ -325,22 +327,47 @@ class SchellenbergUsbApi:
         # Handle acknowledgments
         if message in ("t1", "t0"):
             # Transmit ACK — suppress per-message logging to avoid flooding.
-            # Reset tE counter on successful handshake.
+            # Reset counters on successful handshake.
             if message == "t0":
                 self._tE_counter = 0
+                self._consecutive_tE_failures = 0
             return
 
         if message == "tE":
             # Suppress per-message tE log to guard against log flooding
             # when the stick is overwhelmed (up to 170 tE/s observed).
             self._tE_counter += 1
+            self._consecutive_tE_failures += 1
             if self._tE_counter == 1 or self._tE_counter % 50 == 0:
                 _LOGGER.warning(
                     "Transmit error #%d - stick busy, retrying with backoff",
                     self._tE_counter,
                 )
+
+            # If the stick has been stuck in a permanent busy loop, force
+            # a transport reconnect to recover it.
+            if self._consecutive_tE_failures >= 50:
+                _LOGGER.error(
+                    "Stick stuck in busy loop after %d consecutive tE failures — "
+                    "forcing reconnect",
+                    self._consecutive_tE_failures,
+                )
+                self._pending_retry_command = None
+                self._consecutive_tE_failures = 0
+                if self._transport and not self._transport.is_closing():
+                    self._transport.close()
+                self._transport = None
+                self._protocol = None
+                self._is_connected = False
+                self._update_status()
+                # Schedule reconnect
+                self.hass.loop.call_later(
+                    1, lambda: self.hass.create_task(self.connect())
+                )
+                return
+
             # The USB stick returns tE when still processing the previous command.
-            # _retry_command_after_delay uses exponential backoff (100ms→200ms→400ms→800ms)
+            # _retry_command_after_delay uses exponential backoff (150ms→300ms→600ms→800ms)
             # and up to 4 retry attempts before giving up.
             if self._pending_retry_command:
                 if self._retry_task and not self._retry_task.done():
@@ -693,6 +720,11 @@ class SchellenbergUsbApi:
                     self._pending_retry_command,
                     max_retries,
                 )
+                # Clear pending command — without this, every subsequent tE
+                # triggers another retry of the stale command, creating an
+                # infinite dead loop.
+                self._pending_retry_command = None
+                self._consecutive_tE_failures = 0
         finally:
             self._retry_task = None
 
