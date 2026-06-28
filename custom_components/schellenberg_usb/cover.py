@@ -1,4 +1,11 @@
-"""Cover platform for Schellenberg USB."""
+"""Cover platform for Schellenberg USB.
+
+Credits / Sources:
+- https://github.com/GimpArm/schellenberg_usb (Original cover entity implementation)
+- https://github.com/Hypfer/schellenberg-qivicon-usb (Protocol: command format, position tracking)
+- https://github.com/moTo31/schellenberg-mqtt (State emulation, travel time calculation)
+- https://community.home-assistant.io/t/integration-schellenberg/102832 (Gurtwickler belt drive info)
+"""
 
 from __future__ import annotations
 

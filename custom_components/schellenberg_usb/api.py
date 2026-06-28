@@ -1,4 +1,11 @@
-"""API for Schellenberg USB Stick."""
+"""API for Schellenberg USB Stick.
+
+Credits / Sources:
+- https://github.com/Hypfer/schellenberg-qivicon-usb (Protocol reverse engineering)
+- https://github.com/LoPablo/schellenberg-qivicon-usb (Extended packet analysis)
+- https://github.com/GimpArm/schellenberg_usb (Original Home Assistant integration)
+- https://github.com/moTo31/schellenberg-mqtt (MQTT daemon, command structure)
+"""
 
 from __future__ import annotations
 

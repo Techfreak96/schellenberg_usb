@@ -1,4 +1,9 @@
-"""Config flow for Schellenberg USB integration."""
+"""Config flow for Schellenberg USB integration.
+
+Credits / Sources:
+- https://github.com/GimpArm/schellenberg_usb (Original config_flow by GimpArm)
+- https://github.com/Hypfer/schellenberg-qivicon-usb (Protocol: pairing procedure)
+"""
 
 import asyncio
 import logging

@@ -1,4 +1,9 @@
-"""The Schellenberg USB Stick integration."""
+"""The Schellenberg USB Stick integration.
+
+Credits / Sources:
+- https://github.com/GimpArm/schellenberg_usb (Original integration by GimpArm)
+- https://github.com/Techfreak96/schellenberg_usb (Refactored fork by Techfreak96)
+"""
 
 from __future__ import annotations
 
