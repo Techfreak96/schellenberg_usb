@@ -610,37 +610,38 @@ class SchellenbergUsbApi:
         """
         max_retries = 4
         delay = 0.1  # 100ms initial
-        for attempt in range(max_retries):
-            try:
-                await asyncio.sleep(delay)
-                if self._transport is None or self._transport.is_closing():
-                    _LOGGER.debug("Transport closed during retry; giving up.")
-                    return
-                command = self._pending_retry_command
-                if command is None:
-                    return  # Nothing to retry
-                _LOGGER.debug(
-                    "Retry attempt %d/%d for command: %s",
-                    attempt + 1, max_retries, command,
-                )
-                full_command = f"{command}\r\n".encode("ascii")
-                self._transport.write(full_command)
+        try:
+            for attempt in range(max_retries):
+                try:
+                    await asyncio.sleep(delay)
+                    if self._transport is None or self._transport.is_closing():
+                        _LOGGER.debug("Transport closed during retry; giving up.")
+                        return
+                    command = self._pending_retry_command
+                    if command is None:
+                        return  # Nothing to retry
+                    _LOGGER.debug(
+                        "Retry attempt %d/%d for command: %s",
+                        attempt + 1, max_retries, command,
+                    )
+                    full_command = f"{command}\r\n".encode("ascii")
+                    self._transport.write(full_command)
 
-                # If we don't get another tE, we're done
-                # The next tE will trigger a new retry task
-                delay = min(delay * 2, 0.8)  # Exponential backoff, max 800ms
-            except asyncio.CancelledError:
-                _LOGGER.debug("Retry cancelled")
-                return
-            except Exception as err:
-                _LOGGER.warning("Retry attempt %d failed: %s", attempt + 1, err)
-                return
-        else:
-            _LOGGER.warning(
-                "Command %s failed after %d retries",
-                self._pending_retry_command,
-                max_retries,
-            )
+                    # If we don't get another tE, we're done
+                    # The next tE will trigger a new retry task
+                    delay = min(delay * 2, 0.8)  # Exponential backoff, max 800ms
+                except asyncio.CancelledError:
+                    _LOGGER.debug("Retry cancelled")
+                    return
+                except Exception as err:
+                    _LOGGER.warning("Retry attempt %d failed: %s", attempt + 1, err)
+                    return
+            else:
+                _LOGGER.warning(
+                    "Command %s failed after %d retries",
+                    self._pending_retry_command,
+                    max_retries,
+                )
         finally:
             self._retry_task = None
 
