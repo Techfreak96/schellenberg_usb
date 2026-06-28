@@ -77,13 +77,12 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
                     vol.Required(OPTION_MENU): selector.SelectSelector(
                         selector.SelectSelectorConfig(
                             options=[
-                                (OPT_CONFIGURE, "Configure USB Port"),
-                                (OPT_LEARN_REMOTE, "Learn a New Remote"),
-                                (OPT_MANAGE_REMOTES, "Manage Remotes"),
-                                (OPT_MANAGE_GROUPS, "Manage Virtual Groups"),
-                                (OPT_CONFIGURE_SAFETY, "Configure Safety Lock"),
+                                (OPT_CONFIGURE, "USB-Anschluss konfigurieren"),
+                                (OPT_LEARN_REMOTE, "Neue Fernbedienung anlernen"),
+                                (OPT_MANAGE_REMOTES, "Fernbedienungen verwalten"),
+                                (OPT_MANAGE_GROUPS, "Virtuelle Gruppen verwalten"),
+                                (OPT_CONFIGURE_SAFETY, "Sicherheitssperre konfigurieren"),
                             ],
-                            translation_key=OPTION_MENU,
                         )
                     ),
                 }
@@ -350,7 +349,7 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
             schema[vol.Optional(f"sensor_{device_id}")] = selector.EntitySelector(
                 selector.EntitySelectorConfig(
                     domain="binary_sensor",
-                    device_class=["window", "door"],
+                    device_class="window",
                 ),
             )
 
