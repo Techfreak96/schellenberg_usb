@@ -74,16 +74,14 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
             step_id="init",
             data_schema=vol.Schema(
                 {
-                    vol.Required(OPTION_MENU): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                (OPT_CONFIGURE, "USB-Anschluss konfigurieren"),
-                                (OPT_LEARN_REMOTE, "Neue Fernbedienung anlernen"),
-                                (OPT_MANAGE_REMOTES, "Fernbedienungen verwalten"),
-                                (OPT_MANAGE_GROUPS, "Virtuelle Gruppen verwalten"),
-                                (OPT_CONFIGURE_SAFETY, "Sicherheitssperre konfigurieren"),
-                            ],
-                        )
+                    vol.Required(OPTION_MENU): vol.In(
+                        {
+                            OPT_CONFIGURE: "USB-Anschluss konfigurieren",
+                            OPT_LEARN_REMOTE: "Neue Fernbedienung anlernen",
+                            OPT_MANAGE_REMOTES: "Fernbedienungen verwalten",
+                            OPT_MANAGE_GROUPS: "Virtuelle Gruppen verwalten",
+                            OPT_CONFIGURE_SAFETY: "Sicherheitssperre konfigurieren",
+                        }
                     ),
                 }
             ),
@@ -347,10 +345,7 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
         schema = {}
         for device_id, device_name in blinds:
             schema[vol.Optional(f"sensor_{device_id}")] = selector.EntitySelector(
-                selector.EntitySelectorConfig(
-                    domain="binary_sensor",
-                    device_class="window",
-                ),
+                selector.EntitySelectorConfig(domain="binary_sensor"),
             )
 
         return self.async_show_form(
