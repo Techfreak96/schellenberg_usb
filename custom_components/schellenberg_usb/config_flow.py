@@ -55,12 +55,13 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_supported_subentry_types(
         cls, config_entry: config_entries.ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
-        """Return subentries supported by this integration."""
-        return {
-            SUBENTRY_TYPE_BLIND: SchellenbergPairingSubentryFlow,
-            SUBENTRY_TYPE_WINDOW_SENSOR: SchellenbergWindowSensorSubentryFlow,
-            SUBENTRY_TYPE_BELT_DRIVE: SchellenbergPairingSubentryFlow,
-        }
+        """Return subentries supported by this integration.
+
+        For now we return empty — device management runs entirely through
+        the OptionsFlow (gear icon), not via '+' buttons on the device card.
+        Legacy subentries (already-paired devices) remain untouched.
+        """
+        return {}
 
     def __init__(self) -> None:
         """Initialize the config flow."""
@@ -392,7 +393,11 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
 
 
 class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
-    """Flow for adding a window handle sensor and binding it to a blind."""
+    """Flow for adding a window handle sensor and binding it to a blind.
+
+    NOTE: This flow is not reachable via '+' buttons (async_get_supported_subentry_types
+    returns empty). It is kept for potential future use and to support existing subentries.
+    """
 
     VERSION = 1
 
