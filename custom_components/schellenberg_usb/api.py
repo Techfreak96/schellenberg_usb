@@ -95,6 +95,10 @@ class SchellenbergUsbApi:
         self._device_mode: str | None = None  # boot, initial, or listening
         self._verify_future: asyncio.Future[bool] | None = None
         self._device_id_future: asyncio.Future[str] | None = None
+
+        # Rate-limited debug logging: only log every Nth raw message
+        self._raw_msg_counter = 0
+        self._raw_msg_log_interval = 50  # log 1 of 50 raw messages
         self._hub_id: str | None = None
 
         # Retry queue for commands that failed with "stick busy"
@@ -258,7 +262,15 @@ class SchellenbergUsbApi:
         This method parses raw strings received from the USB stick and dispatches
         them to the appropriate handlers (pairing, remote learning, or device events).
         """
-        _LOGGER.debug("Received raw message: %s", message)
+        # Rate-limited raw message logging: avoid flooding the log
+        # when many RF messages arrive (remotes, sensors repeat 10x each).
+        self._raw_msg_counter += 1
+        if self._raw_msg_counter % self._raw_msg_log_interval == 0:
+            _LOGGER.debug(
+                "Received raw message #%d: %s",
+                self._raw_msg_counter,
+                message,
+            )
 
         # Handle device verification response (format: RFTU_V20 F:20180510_DFBD B:1)
         # RFTU_V20 = device type and version
@@ -295,7 +307,7 @@ class SchellenbergUsbApi:
 
         # Handle acknowledgments
         if message in ("t1", "t0"):
-            _LOGGER.debug("Transmit ACK: %s", message)
+            # Transmit ACK — suppress per-message logging to avoid flooding
             return
 
         if message == "tE":
@@ -1230,7 +1242,7 @@ class SchellenbergProtocol(asyncio.Protocol):
 
     def data_received(self, data: bytes) -> None:
         """Called with new data from the serial port."""
-        _LOGGER.debug("Received from serial device: %s", data)
+        # Suppress per-chunk logging — _handle_message logs every Nth message
         self.buffer += data.decode("ascii", errors="ignore")
         # Safety limit: prevent unbounded buffer growth if no newline arrives
         if len(self.buffer) > 4096:
@@ -1242,7 +1254,6 @@ class SchellenbergProtocol(asyncio.Protocol):
         while "\n" in self.buffer:
             line, self.buffer = self.buffer.split("\n", 1)
             if line.strip():
-                _LOGGER.debug("Parsed message from serial device: %s", line.strip())
                 self.message_callback(line.strip())
 
     def connection_lost(self, exc: Exception | None) -> None:
