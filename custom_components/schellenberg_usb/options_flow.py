@@ -341,11 +341,11 @@ class SchellenbergOptionsFlowHandler(OptionsFlow):
             )
             return self.async_create_entry(title="", data=updated_options)
 
-        # Build schema with one binary_sensor selector per blind
+        # Build schema with one text field per blind for sensor entity ID
         schema = {}
         for device_id, device_name in blinds:
-            schema[vol.Optional(f"sensor_{device_id}")] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain="binary_sensor"),
+            schema[vol.Optional(f"sensor_{device_id}")] = selector.TextSelector(
+                selector.TextSelectorConfig(type="text"),
             )
 
         return self.async_show_form(
