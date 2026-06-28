@@ -14,7 +14,7 @@ Home Assistant integration for the [Schellenberg USB Funk-Stick (21009)](https:/
 > This integration is **not affiliated with Schellenberg GmbH**. The developers take no responsibility for anything that happens to your devices. Use at your own risk.
 
 > [!IMPORTANT]
-> **Schellenberg has discontinued their Smart Friends platform.** This community integration is now the primary way to use Schellenberg devices with modern smart home systems.
+> **Schellenberg has discontinued their Smart Friends platform.**
 
 ![Schellenberg](https://raw.githubusercontent.com/Techfreak96/schellenberg_usb/main/images/schellenberg-logo.png)
 
