@@ -107,6 +107,9 @@
       "entry_type": "Window Sensor",
       "name": "Add window sensor",
       "description": "Add a Schellenberg window handle sensor and bind it to a blind for automatic safety locking.",
+      "initiate_flow": {
+        "user": "Learn window sensor"
+      },
       "step": {
         "user": {
           "title": "Bind to blind",
@@ -137,7 +140,16 @@
           "group_id": "Virtual group ID",
           "group_name": "Virtual group name",
           "learn_remote": "Learn physical remote",
-          "remote_name": "Remote name"
+          "remote_name": "Remote name",
+          "menu_option": {
+            "options": {
+              "configure_port": "Configure USB port",
+              "learn_remote": "Learn a new remote",
+              "manage_remotes": "Manage remotes",
+              "manage_groups": "Manage virtual groups",
+              "configure_safety": "Configure safety lock"
+            }
+          }
         },
         "submit": "Save"
       }

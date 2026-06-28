@@ -125,7 +125,16 @@
         "title": "Schellenberg USB",
         "description": "Bearbeiten Sie den seriellen Anschlusspfad für den Schellenberg USB-Hub.",
         "data": {
-          "serial_port": "Serieller Anschluss"
+          "serial_port": "Serieller Anschluss",
+          "menu_option": {
+            "options": {
+              "configure_port": "USB-Anschluss konfigurieren",
+              "learn_remote": "Neue Fernbedienung anlernen",
+              "manage_remotes": "Fernbedienungen verwalten",
+              "manage_groups": "Virtuelle Gruppen verwalten",
+              "configure_safety": "Sicherheitssperre konfigurieren"
+            }
+          }
         },
         "submit": "Speichern"
       }

@@ -200,7 +200,7 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
 
 class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
-    """Flow for adding new blind devices as subentries."""
+    """Flow for pairing new Schellenberg devices (blinds / belt drives)."""
 
     VERSION = 1
 
@@ -228,101 +228,14 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
     async def async_step_belt_drive(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Entry point for the Belt Drive '+' button.
-
-        Belt drives use the same pairing/calibration flow as regular blinds.
-        """
+        """Entry point for the Belt Drive '+' button."""
         return await self.async_step_blind(user_input)
 
     async def async_step_blind(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Entry point when the user clicks the 'Pair device' button.
-
-        Shows a type selection form: "What do you want to add?"
-        - Blind → runs active pairing (send commands, wait for motor)
-        - Remote → passive listening (capture remote ID)
-        """
-        _LOGGER.debug("Subentry blind flow initiated (pairing new device)")
-
-        if user_input is not None:
-            device_type = user_input.get("device_type")
-            if device_type == "blind":
-                return await self.async_step_user()
-            if device_type == "remote":
-                return await self.async_step_learn_remote()
-
-        return self.async_show_form(
-            step_id="blind",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("device_type"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=[
-                                ("blind", "Blind / Roller Shutter"),
-                                ("remote", "Remote Control"),
-                            ],
-                        )
-                    ),
-                }
-            ),
-        )
-
-    async def async_step_learn_remote(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Passively learn a remote by listening for its button press."""
-        hub_entry = self._get_entry()
-        api = hub_entry.runtime_data
-
-        if user_input is not None:
-            remote = await api.learn_remote_and_wait()
-            if remote is None:
-                return self.async_abort(reason="remote_learning_timeout")
-
-            remote_id = remote["remote_id"]
-            channel = remote["channel"]
-
-            # Persist to entry.options
-            updated_options = dict(hub_entry.options)
-            remotes = list(updated_options.get(CONF_REMOTE_CONTROLS, []))
-            # Avoid duplicates
-            remotes = [
-                r
-                for r in remotes
-                if not (r.get("remote_id") == remote_id and r.get("channel") == channel)
-            ]
-            remotes.append(
-                {
-                    "remote_name": user_input.get("remote_name")
-                    or f"Remote {remote_id}",
-                    "remote_id": remote_id,
-                    "channel": channel,
-                    "last_button": remote["button"],
-                }
-            )
-            updated_options[CONF_REMOTE_CONTROLS] = remotes
-            self.hass.config_entries.async_update_entry(
-                hub_entry, options=updated_options
-            )
-            # Reload to create the event entity
-            await self.hass.config_entries.async_reload(hub_entry.entry_id)
-            return self.async_create_entry(
-                title=f"Remote {remote_id}",
-                data={},
-            )
-
-        return self.async_show_form(
-            step_id="learn_remote",
-            data_schema=vol.Schema(
-                {
-                    vol.Optional("remote_name"): selector.TextSelector(),
-                }
-            ),
-            description_placeholders={
-                "instruction": "Press any button on the physical remote within 30 seconds"
-            },
-        )
+        """Start pairing directly — no redundant type selector."""
+        return await self.async_step_user(user_input)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
@@ -482,7 +395,12 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
     """Flow for adding a window handle sensor and binding it to a blind."""
 
     VERSION = 1
-    _bind_blind_id: str | None = None
+
+    def __init__(self) -> None:
+        """Initialize the window sensor subentry flow."""
+        super().__init__()
+        self._bind_blind_id: str | None = None
+        self._sensor_device_id: str | None = None
 
     async def async_step_window_sensor(
         self, user_input: dict[str, Any] | None = None
@@ -530,11 +448,10 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
         """Step 2: Listen for a window sensor signal."""
         hub_entry = self._get_entry()
         api: SchellenbergUsbApi = hub_entry.runtime_data
-        sensor_device_id: str | None = None
 
         if user_input is not None:
             future: asyncio.Future[dict[str, str]] = (
-                hub_entry.runtime_data.hass.loop.create_future()
+                asyncio.get_running_loop().create_future()
             )
 
             # Listen on the bus event that api.py fires for window sensors.
@@ -559,13 +476,14 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
                 sensor_device_id = result.get("device_id", "")
                 if not sensor_device_id:
                     return self.async_abort(reason="window_sensor_timeout")
+                self._sensor_device_id = sensor_device_id
             except TimeoutError:
                 return self.async_abort(reason="window_sensor_timeout")
             finally:
                 if bus_unsub:
                     bus_unsub()
 
-            return await self.async_step_confirm(sensor_device_id)
+            return await self.async_step_confirm()
 
         return self.async_show_form(
             step_id="listen",
@@ -576,19 +494,27 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
         )
 
     async def async_step_confirm(
-        self, sensor_device_id: str | None = None,
-        user_input: dict[str, Any] | None = None,
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Step 3: Confirm and create the subentry."""
-        if sensor_device_id is None:
+        """Step 3: Confirm and create the subentry.
+
+        NOTE: sensor_device_id is stored in self._sensor_device_id (not passed
+        as a method parameter) because HA's flow manager always calls step
+        methods with keyword-only user_input. A positional-only parameter
+        would always be None, causing an immediate abort (the 400 Bad Request).
+        """
+        if self._sensor_device_id is None:
             return self.async_abort(reason="window_sensor_timeout")
 
         if user_input is not None:
-            device_name = user_input.get("name") or f"Window Sensor {sensor_device_id}"
+            device_name = (
+                user_input.get("name")
+                or f"Window Sensor {self._sensor_device_id}"
+            )
             return self.async_create_entry(
                 title=device_name,
                 data={
-                    "device_id": sensor_device_id,
+                    "device_id": self._sensor_device_id,
                     "bound_blind_id": self._bind_blind_id,
                     "type": "window_sensor",
                 },
@@ -602,7 +528,7 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
                 }
             ),
             description_placeholders={
-                "device_id": sensor_device_id,
+                "device_id": self._sensor_device_id,
                 "blind_id": self._bind_blind_id or "unknown",
             },
         )
