@@ -599,6 +599,11 @@ class SchellenbergUsbApi:
     async def pair_device_and_wait(self) -> tuple[str, str] | None:
         """Put the stick into pairing mode and wait for a device to pair.
 
+        Per the reverse-engineered protocol (Hypfer/LoPablo), the correct
+        pairing procedure is:
+          1. Send CMD_PAIR (0x60)  → motor beeps/rattles
+          2. Send CMD_ALLOW_PAIRING (0x40) → motor beeps/rattles again → paired
+
         Returns a tuple of (device_id, device_enum) if successful, None if timeout.
         """
         if self._pairing_future and not self._pairing_future.done():
@@ -608,31 +613,22 @@ class SchellenbergUsbApi:
         # Get the next available device enumerator
         device_enum = self.initialize_next_device_enum()
 
-        # Format: ssXX9CCPPPP
-        # ss = transmit prefix
-        # XX = device enumerator (2 hex chars)
-        # 9 = number of messages to send
-        # CC = command (40 = allow pairing / learn new remote)
-        # PPPP = padding (4 chars)
-        #
-        # NOTE: CMD_ALLOW_PAIRING (0x40) is used here, NOT CMD_PAIR (0x60).
-        # Multiple users (ohlmannmichael-ai, hrabbach, YannToberen) and the
-        # reverse-engineered protocol docs confirm that 0x40 is the correct
-        # command to make a blind motor accept the stick's enum assignment.
-        # 0x60 only changes rotation direction and does NOT complete pairing.
-        pair_command = f"{CMD_TRANSMIT}{device_enum}9{CMD_ALLOW_PAIRING}0000"
+        # Build both pairing commands per protocol spec
+        pair_cmd_60 = f"{CMD_TRANSMIT}{device_enum}9{CMD_PAIR}0000"          # 0x60 first
+        pair_cmd_40 = f"{CMD_TRANSMIT}{device_enum}9{CMD_ALLOW_PAIRING}0000"  # 0x40 second
 
         _LOGGER.info(
-            "Initiating pairing with device enum %s. Command: %s",
+            "Initiating pairing with device enum %s. Commands: %s then %s",
             device_enum,
-            pair_command,
+            pair_cmd_60,
+            pair_cmd_40,
         )
 
         # Create a future to wait for device ID first
         self._pairing_future = self.hass.loop.create_future()
 
         try:
-            # Send sp command to enter pairing/listening mode (like C# does)
+            # Send sp command to enter pairing/listening mode
             _LOGGER.debug("Entering pairing mode with command: sp")
             await self.send_command(CMD_GET_PARAM_P)
 
@@ -641,13 +637,23 @@ class SchellenbergUsbApi:
                 self._pairing_future, timeout=PAIRING_TIMEOUT
             )
 
-            # Once we have the device ID, send the pairing command
+            # Step 1: Send CMD_PAIR (0x60)
             _LOGGER.debug(
-                "Received device ID %s, sending pairing command: %s",
+                "Received device ID %s, sending pair command (0x60): %s",
                 device_id,
-                pair_command,
+                pair_cmd_60,
             )
-            await self.send_command(pair_command)
+            await self.send_command(pair_cmd_60)
+
+            # Short delay per protocol recommendation
+            await asyncio.sleep(0.1)
+
+            # Step 2: Send CMD_ALLOW_PAIRING (0x40) to finalise
+            _LOGGER.debug(
+                "Sending allow pairing command (0x40): %s",
+                pair_cmd_40,
+            )
+            await self.send_command(pair_cmd_40)
         except TimeoutError:
             _LOGGER.warning("Pairing timeout - no device responded with ID")
             return None

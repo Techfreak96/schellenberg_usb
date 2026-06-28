@@ -223,17 +223,12 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         """Entry point when the user clicks the 'Pair device' button.
 
-        This now shows a type selection: "What do you want to add?"
+        Shows a type selection form: "What do you want to add?"
         - Blind → runs active pairing (send commands, wait for motor)
         - Remote → passive listening (capture remote ID)
         """
         _LOGGER.debug("Subentry blind flow initiated (pairing new device)")
-        return await self.async_step_select_type(user_input)
 
-    async def async_step_select_type(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Let the user choose between pairing a blind or a remote."""
         if user_input is not None:
             device_type = user_input.get("device_type")
             if device_type == "blind":
@@ -242,7 +237,20 @@ class SchellenbergPairingSubentryFlow(ConfigSubentryFlow):
                 return await self.async_step_learn_remote()
 
         return self.async_show_form(
-            step_id="select_type",
+            step_id="blind",
+            data_schema=vol.Schema(
+                {
+                    vol.Required("device_type"): selector.SelectSelector(
+                        selector.SelectSelectorConfig(
+                            options=[
+                                ("blind", "Blind / Roller Shutter"),
+                                ("remote", "Remote Control"),
+                            ],
+                        )
+                    ),
+                }
+            ),
+        )
             data_schema=vol.Schema(
                 {
                     vol.Required("device_type"): selector.SelectSelector(

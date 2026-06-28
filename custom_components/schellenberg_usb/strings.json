@@ -42,7 +42,7 @@
         "reconfigure": "Calibrate"
       },
       "step": {
-        "select_type": {
+        "blind": {
           "title": "Add device",
           "description": "What do you want to add?",
           "data": {
