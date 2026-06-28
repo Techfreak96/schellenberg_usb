@@ -102,7 +102,7 @@
         "user": "Apprendre capteur de fenêtre"
       },
       "step": {
-        "user": {
+        "bind_blind": {
           "title": "Lier au volet",
           "description": "Sélectionnez à quel volet ce capteur de fenêtre appartient."
         },

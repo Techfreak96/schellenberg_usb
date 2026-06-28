@@ -102,7 +102,7 @@
         "user": "Aprender sensor de ventana"
       },
       "step": {
-        "user": {
+        "bind_blind": {
           "title": "Vincular a persiana",
           "description": "Seleccione a qué persiana pertenece este sensor de ventana."
         },

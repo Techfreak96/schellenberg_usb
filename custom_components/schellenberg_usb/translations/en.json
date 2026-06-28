@@ -102,7 +102,7 @@
         "user": "Learn window sensor"
       },
       "step": {
-        "user": {
+        "bind_blind": {
           "title": "Bind to blind",
           "description": "Select which blind this window sensor belongs to."
         },

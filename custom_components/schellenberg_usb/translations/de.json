@@ -101,7 +101,7 @@
         "user": "Fenstersensor anlernen"
       },
       "step": {
-        "user": {
+        "bind_blind": {
           "title": "Mit Rollladen verbinden",
           "description": "Wählen Sie aus, zu welchem Rollladen dieser Fenstersensor gehört."
         },

@@ -406,9 +406,9 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Entry point for the Window Sensor '+' button."""
-        return await self.async_step_user(user_input)
+        return await self.async_step_bind_blind(user_input)
 
-    async def async_step_user(
+    async def async_step_bind_blind(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Step 1: Show form to select which blind this sensor belongs to."""
@@ -430,13 +430,11 @@ class SchellenbergWindowSensorSubentryFlow(ConfigSubentryFlow):
             return await self.async_step_listen()
 
         return self.async_show_form(
-            step_id="user",
+            step_id="bind_blind",
             data_schema=vol.Schema(
                 {
-                    vol.Required("blind_device_id"): selector.SelectSelector(
-                        selector.SelectSelectorConfig(
-                            options=blind_options,
-                        ),
+                    vol.Required("blind_device_id"): vol.In(
+                        {dev_id: name for dev_id, name in blind_options}
                     ),
                 }
             ),

@@ -111,7 +111,7 @@
         "user": "Learn window sensor"
       },
       "step": {
-        "user": {
+        "bind_blind": {
           "title": "Bind to blind",
           "description": "Select which blind this window sensor belongs to. When the window is open or tilted, the selected blind will be locked automatically."
         },
