@@ -635,6 +635,11 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
             self._travel_time_open if self._attr_is_opening else self._travel_time_close
         )
 
+        # Guard against a travel time of 0 (or a non-numeric value), which would
+        # otherwise raise ZeroDivisionError and kill the position estimator.
+        if not travel_time or travel_time <= 0:
+            travel_time = DEFAULT_TRAVEL_TIME
+
         # Calculate total percentage moved since movement started
         total_position_change = (elapsed_time / travel_time) * 100
 
@@ -662,6 +667,10 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
     async def async_open_cover(self, **kwargs: Any) -> None:
         """Open the cover."""
         _LOGGER.debug("Opening cover %s (enum=%s)", self._attr_name, self._device_enum)
+        # Drop any stale target left over from a previous set_position() call.
+        # Otherwise the position tracker would stop the blind early at the old
+        # target instead of driving all the way to 100%.
+        self._target_position = None
         self._attr_is_opening = True
         self._attr_is_closing = False
         self._move_start_time = time.monotonic()
@@ -689,6 +698,10 @@ class SchellenbergCover(CoverEntity, RestoreEntity):
             return
 
         _LOGGER.debug("Closing cover %s (enum=%s)", self._attr_name, self._device_enum)
+        # Drop any stale target left over from a previous set_position() call,
+        # otherwise the tracker would stop early at the old target instead of
+        # driving all the way to 0%. (See async_open_cover().)
+        self._target_position = None
         self._attr_is_opening = False
         self._attr_is_closing = True
         self._move_start_time = time.monotonic()

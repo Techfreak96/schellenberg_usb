@@ -18,6 +18,7 @@ from homeassistant.config_entries import (
     SubentryFlowResult,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import AbortFlow
 from homeassistant.helpers import selector
 from homeassistant.helpers.service_info.usb import UsbServiceInfo
 
@@ -106,6 +107,11 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except serial.SerialException:
                 errors["base"] = "cannot_connect"
                 _LOGGER.error("Failed to connect to serial port %s", port)
+            except AbortFlow:
+                # _abort_if_unique_id_configured() signals "already configured"
+                # by raising this - let it propagate instead of it being
+                # swallowed as an "unknown error" by the handler below.
+                raise
             except Exception:
                 errors["base"] = "unknown"
                 _LOGGER.exception("An unexpected error occurred")
@@ -171,6 +177,10 @@ class SchellenbergUsbConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             except serial.SerialException:
                 errors["base"] = "cannot_connect"
                 _LOGGER.error("Failed to connect to serial port %s", port)
+            except AbortFlow:
+                # Same reasoning as async_step_user(): don't let the abort
+                # signal be swallowed as an "unknown error" below.
+                raise
             except Exception:
                 errors["base"] = "unknown"
                 _LOGGER.exception("An unexpected error occurred during USB confirm")
