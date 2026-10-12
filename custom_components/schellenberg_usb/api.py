@@ -541,7 +541,13 @@ class SchellenbergUsbApi:
 
                 # If this is the first time we see this device (auto-discovery mode)
                 if not is_registered_device:
-                    _LOGGER.warning(
+                    # DEBUG, not WARNING: while no cover is registered yet (i.e.
+                    # right after a fresh connection), every frame from any
+                    # foreign remote on the same band lands here. Upstream
+                    # measured up to 340 such lines in under 7 minutes, which
+                    # buries the real log. The one-time persistent notification
+                    # below is what actually surfaces a new device to the user.
+                    _LOGGER.debug(
                         "Received message for device %s (enum=%s, cmd=%s) but no "
                         "corresponding entity found. The device may need to be added "
                         "to Home Assistant",
